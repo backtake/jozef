@@ -1,33 +1,26 @@
-# józef
+# Life ETA Engine
 
-Aplikacja Spring Boot 3.x
+## Wizja
+
+Life ETA Engine to osobisty asystent planowania życia oparty na AI. Łączy kalendarz, zadania, nawyki, rutyny i dane z integracji (Google, Spotify, Garmin, Home Assistant) by dostarczyć proaktywne sugestie i szacunki czasu (ETA).
 
 ## Stack
 
 - Java 21 LTS
 - Spring Boot 3.4
-- Gradle
+- Gradle (Kotlin DSL)
 - SQLite + Flyway
-- SLF4J / Logback
-- Jackson
-- JUnit 5
 - Lombok
+- JUnit 5
 
-## Budowanie i uruchamianie
+## Uruchomienie
 
 ```bash
-# Budowanie
-./gradlew build
-
-# Uruchomienie
 ./gradlew bootRun
-
-# Testy
-./gradlew test
 ```
 
-## Struktura bazy danych
+## Architektura
 
-Migracje Flyway znajdują się w `src/main/resources/db/migration/`.
+Projekt podzielony jest modułowo — **package by feature**. Każdy moduł biznesowy (`planner`, `eta`, `memory`, itd.) ma własną strukturę warstwową (`api`, `application`, `domain`, `infrastructure`, `config`). Współdzielony kod znajduje się w `common`.
 
-Baza SQLite: `data/jozef.db`
+Dokumentacja architektoniczna: `docs/architecture/`

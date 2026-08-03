@@ -1,0 +1,7 @@
+logging:
+  level:
+    pl.twojadomena.lifeeta: INFO
+    org.springframework: WARN
+
+server:
+  port: ${PORT:8080}

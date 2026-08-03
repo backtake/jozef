@@ -1,25 +1,27 @@
 spring:
   application:
-    name: józef
+    name: life-eta-engine
+  profiles:
+    active: dev
 
   datasource:
-    url: jdbc:sqlite:data/jozef.db
+    url: jdbc:sqlite:data/lifeeta.db
     driver-class-name: org.sqlite.JDBC
-    hikari:
-      maximum-pool-size: 1  # SQLite supports single writer
 
   jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
     hibernate:
-      ddl-auto: update  # Flyway disabled — using Hibernate for schema
-    open-in-view: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.community.dialect.SQLiteDialect
+      ddl-auto: validate
 
   flyway:
-    enabled: false  # SQLite needs Flyway 12+ nc-sqlite extension — TODO: enable when ready
+    locations: classpath:db/migration
+    enabled: true
 
-logging:
-  level:
-    root: INFO
-    com.jozef: DEBUG
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
