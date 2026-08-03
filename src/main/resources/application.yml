@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: józef
+
+  datasource:
+    url: jdbc:sqlite:data/jozef.db
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 1  # SQLite supports single writer
+
+  jpa:
+    hibernate:
+      ddl-auto: update  # Flyway disabled — using Hibernate for schema
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.community.dialect.SQLiteDialect
+
+  flyway:
+    enabled: false  # SQLite needs Flyway 12+ nc-sqlite extension — TODO: enable when ready
+
+logging:
+  level:
+    root: INFO
+    com.jozef: DEBUG
