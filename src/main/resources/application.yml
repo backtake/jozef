@@ -1,11 +1,10 @@
 spring:
   application:
-    name: life-eta-engine
-  profiles:
-    active: dev
+    name: jozef
+    version: 0.0.1
 
   datasource:
-    url: jdbc:sqlite:data/lifeeta.db
+    url: jdbc:sqlite:data/jozef.db
     driver-class-name: org.sqlite.JDBC
 
   jpa:
@@ -20,8 +19,9 @@ spring:
 server:
   port: 8080
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics
+logging:
+  level:
+    com.jozef: INFO
+    org.springframework: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
