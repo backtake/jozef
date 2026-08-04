@@ -1,7 +1,0 @@
-logging:
-  level:
-    pl.twojadomena.lifeeta: DEBUG
-    org.springframework.web: DEBUG
-
-server:
-  port: 8080

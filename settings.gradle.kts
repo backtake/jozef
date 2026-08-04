@@ -1,1 +1,1 @@
-rootProject.name = "life-eta-engine"
+rootProject.name = "jozef"
