@@ -29,6 +29,7 @@ class TaskFactoryTest {
         assertThat(task.name()).isEqualTo("Design the architecture");
         assertThat(task.createdAt()).isEqualTo(FAKE_NOW);
         assertThat(task.estimatedDuration()).isEqualTo(FAKE_DURATION);
+        assertThat(task.status()).isEqualTo(TaskStatus.TODO);
     }
 
     @Test

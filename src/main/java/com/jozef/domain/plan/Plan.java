@@ -1,8 +1,11 @@
 package com.jozef.domain.plan;
 
+import com.jozef.domain.common.Progress;
 import com.jozef.domain.goal.Goal;
 import com.jozef.domain.task.Task;
+import com.jozef.domain.task.TaskStatus;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -29,9 +32,35 @@ public class Plan {
         tasks.add(task);
     }
 
-    public java.time.Duration estimatedDuration() {
+    public Duration estimatedDuration() {
         return tasks.stream()
                 .map(task -> task.estimatedDuration().value())
-                .reduce(java.time.Duration.ZERO, java.time.Duration::plus);
+                .reduce(Duration.ZERO, Duration::plus);
+    }
+
+    public void startNextTask() {
+        tasks.stream()
+                .filter(task -> task.status() == TaskStatus.TODO)
+                .findFirst()
+                .ifPresent(Task::start);
+    }
+
+    public Duration remainingDuration() {
+        return tasks.stream()
+                .filter(task -> task.status() != TaskStatus.DONE)
+                .map(task -> task.estimatedDuration().value())
+                .reduce(Duration.ZERO, Duration::plus);
+    }
+
+    public Duration completedDuration() {
+        return tasks.stream()
+                .filter(task -> task.status() == TaskStatus.DONE)
+                .map(task -> task.estimatedDuration().value())
+                .reduce(Duration.ZERO, Duration::plus);
+    }
+
+    public Progress progress() {
+        long done = tasks.stream().filter(task -> task.status() == TaskStatus.DONE).count();
+        return new Progress((int) done, tasks.size());
     }
 }

@@ -19,7 +19,8 @@ public class TaskFactory {
                 idGenerator.generate(),
                 name,
                 timeProvider.now(),
-                estimatedDuration
+                estimatedDuration,
+                TaskStatus.TODO
         );
     }
 }
