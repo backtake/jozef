@@ -2,12 +2,14 @@ package com.jozef.domain.plan;
 
 import com.jozef.common.id.IdGenerator;
 import com.jozef.common.time.TimeProvider;
+import com.jozef.domain.common.TaskDuration;
 import com.jozef.domain.goal.Goal;
 import com.jozef.domain.goal.GoalFactory;
 import com.jozef.domain.task.Task;
 import com.jozef.domain.task.TaskFactory;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -39,7 +41,7 @@ class PlanTest {
     void shouldAddTaskToPlan() {
         Goal goal = goalFactory.create("Ship MVP");
         Plan plan = planFactory.create(goal);
-        Task task = taskFactory.create("Deploy to production");
+        Task task = taskFactory.create("Deploy to production", new TaskDuration(Duration.ofHours(1)));
 
         plan.addTask(task);
 
@@ -53,5 +55,25 @@ class PlanTest {
         Plan plan = planFactory.create(goal);
 
         assertThat(plan.tasks()).isUnmodifiable();
+    }
+
+    @Test
+    void shouldCalculateTotalEstimatedDuration() {
+        Goal goal = goalFactory.create("Go kayaking");
+        Plan plan = planFactory.create(goal);
+
+        plan.addTask(taskFactory.create("Heat dinner", new TaskDuration(Duration.ofMinutes(10))));
+        plan.addTask(taskFactory.create("Eat dinner", new TaskDuration(Duration.ofMinutes(20))));
+        plan.addTask(taskFactory.create("Pack kayak", new TaskDuration(Duration.ofMinutes(25))));
+
+        assertThat(plan.estimatedDuration()).isEqualTo(Duration.ofMinutes(55));
+    }
+
+    @Test
+    void shouldReturnZeroForEmptyPlan() {
+        Goal goal = goalFactory.create("Empty goal");
+        Plan plan = planFactory.create(goal);
+
+        assertThat(plan.estimatedDuration()).isEqualTo(Duration.ZERO);
     }
 }

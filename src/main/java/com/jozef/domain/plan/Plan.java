@@ -28,4 +28,10 @@ public class Plan {
     public void addTask(Task task) {
         tasks.add(task);
     }
+
+    public java.time.Duration estimatedDuration() {
+        return tasks.stream()
+                .map(task -> task.estimatedDuration().value())
+                .reduce(java.time.Duration.ZERO, java.time.Duration::plus);
+    }
 }
