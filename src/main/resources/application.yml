@@ -1,27 +1,100 @@
 spring:
   application:
     name: jozef
-    version: 0.0.1
+    version: 0.1.0
+  main:
+    web-application-type: none
+    headless: false
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration
 
-  datasource:
-    url: jdbc:sqlite:data/jozef.db
-    driver-class-name: org.sqlite.JDBC
+jozef:
+  # ─── LLM ────────────────────────────────────────────
+  llm:
+    provider: ollama               # ollama | openai | deepseek
+    model: llama3.2
+    endpoint: http://localhost:11434
+    api-key-env: OPENAI_API_KEY    # env var name for the secret (never inline)
+    temperature: 0.7
+    max-tokens: 2048
 
-  jpa:
-    database-platform: org.hibernate.community.dialect.SQLiteDialect
-    hibernate:
-      ddl-auto: validate
+  # ─── Persona ────────────────────────────────────────
+  persona:
+    name: Jozef
+    language: pl
+    style: concise
 
-  flyway:
-    locations: classpath:db/migration
+  # ─── Agent loop ─────────────────────────────────────
+  agent:
+    max-tool-calls-per-turn: 5
+    tool-timeout-seconds: 30
+
+  # ─── Speech ─────────────────────────────────────────
+  speech:
+    stt:
+      provider: console            # console | whisper-local | vosk | deepgram | windows
+      model: base
+    tts:
+      provider: edge              # edge | windows | console | elevenlabs | azure
+      voice: pl-PL-ZofiaNeural    # pl-PL-ZofiaNeural | pl-PL-MarekNeural (darmowe neuralne)
+    vad:
+      enabled: true
+      sensitivity: medium          # low | medium | high
+
+  # ─── Overlay ────────────────────────────────────────
+  overlay:
     enabled: true
+    position: top-right            # top-left | top-right | bottom-left | bottom-right | center
+    opacity: 0.9
+    timeout-ms: 5000
 
-server:
-  port: 8080
+  # ─── Wake Word ──────────────────────────────────────
+  wakeword:
+    enabled: false
+    word: "hej jozef"
+
+  # ─── Automation ─────────────────────────────────────
+  automation:
+    platform: windows              # windows | linux | mac
+    mouse-speed: 1.0
+    typing-speed: 1.0
+
+  # ─── Browser (Playwright) ───────────────────────────
+  browser:
+    enabled: true
+    headless: false                # true = ukryta przeglądarka
+    channel: msedge                # msedge | chrome | (puste = bundled chromium)
+    profile-dir: ""                # opcjonalny trwały profil (zalogowane sesje)
+
+  # ─── Plugins ────────────────────────────────────────
+  plugins:
+    auto-discover: true
+    directories:
+      - plugins/
+    disabled: []                   # list of disabled plugins
+
+  # ─── Memory ─────────────────────────────────────────
+  memory:
+    conversation-max-turns: 50
+    working-memory-size: 10
+    vector-store:
+      enabled: false
+      provider: qdrant             # qdrant | chroma | pgvector
+
+  # ─── Runtime ────────────────────────────────────────
+  runtime:
+    event-bus:
+      thread-pool-size: 4
+    health:
+      enabled: true
+      check-interval-seconds: 30
 
 logging:
   level:
     com.jozef: INFO
-    org.springframework: WARN
+    com.jozef.core: INFO
   pattern:
-    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{HH:mm:ss.SSS} [%-18thread] %-5level %logger{20} - %msg%n"

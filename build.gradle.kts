@@ -24,21 +24,25 @@ repositories {
 }
 
 dependencies {
-    // Spring Boot
+    // Spring Boot — tylko kontener DI, zero web/REST
     implementation("org.springframework.boot:spring-boot-starter")
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation("org.springframework.boot:spring-boot-starter-web")
 
-    // SQLite
-    runtimeOnly("org.xerial:sqlite-jdbc:3.49.1.0")
-    implementation("org.hibernate.orm:hibernate-community-dialects")
-
-    // Flyway
-    implementation("org.flywaydb:flyway-core")
+    // YAML configuration
+    implementation("org.springframework.boot:spring-boot-configuration-processor")
 
     // Lombok
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
+
+    // Jackson (YAML parsing, JSON for tool calls)
+    implementation("com.fasterxml.jackson.core:jackson-databind")
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+
+    // MP3 playback (Edge TTS neural voices)
+    implementation("com.googlecode.soundlibs:jlayer:1.0.1.4")
+
+    // Browser automation (Playwright Java)
+    implementation("com.microsoft.playwright:playwright:1.49.0")
 
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
@@ -48,4 +52,8 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+    jvmArgs = listOf("-Xmx512m", "-XX:+UseG1GC")
 }

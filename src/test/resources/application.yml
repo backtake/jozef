@@ -1,13 +1,20 @@
 spring:
-  datasource:
-    url: "jdbc:sqlite::memory:"
-    driver-class-name: org.sqlite.JDBC
-  jpa:
-    database-platform: org.hibernate.community.dialect.SQLiteDialect
-    hibernate:
-      ddl-auto: create-drop
-  flyway:
-    enabled: false
   application:
     name: jozef-test
     version: test
+  main:
+    web-application-type: none
+    headless: false
+
+jozef:
+  llm:
+    provider: ollama
+    model: llama3.2
+    endpoint: http://localhost:11434
+    temperature: 0.7
+    max-tokens: 2048
+  speech:
+    tts:
+      provider: console
+  automation:
+    platform: windows

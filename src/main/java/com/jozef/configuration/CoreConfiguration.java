@@ -1,0 +1,196 @@
+package com.jozef.configuration;
+
+import com.jozef.automation.AutomationCapability;
+import com.jozef.browser.BrowserCapability;
+import com.jozef.core.agent.AgentRuntime;
+import com.jozef.core.builtin.GetTimeAction;
+import com.jozef.core.capabilities.Capability;
+import com.jozef.core.capabilities.CapabilityLoader;
+import com.jozef.core.commands.CommandBus;
+import com.jozef.core.commands.CommandBusImpl;
+import com.jozef.core.context.ConfigurableSystemPromptProvider;
+import com.jozef.core.context.SystemPromptProvider;
+import com.jozef.core.events.AsyncEventBus;
+import com.jozef.core.events.Event;
+import com.jozef.core.events.EventBus;
+import com.jozef.core.health.HealthMonitor;
+import com.jozef.core.lifecycle.ApplicationLifecycle;
+import com.jozef.core.logging.EventLogger;
+import com.jozef.core.plugins.Plugin;
+import com.jozef.core.plugins.PluginLoader;
+import com.jozef.core.security.AutoDenyConfirmationService;
+import com.jozef.core.security.ConfirmationService;
+import com.jozef.core.security.PermissionManager;
+import com.jozef.core.session.SessionManager;
+import com.jozef.core.tool.ToolRegistry;
+import com.jozef.llm.LLMCapability;
+import com.jozef.speech.SpeechCapability;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * Core configuration — wires the entire runtime.
+ *
+ * No web, no REST, no controllers. Just the event-driven agent engine.
+ */
+@Configuration
+@EnableConfigurationProperties(JozefProperties.class)
+public class CoreConfiguration {
+
+    // ─── Executor Service ───────────────────────────
+
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService eventExecutor(JozefProperties props) {
+        int poolSize = props.runtime().eventBus().threadPoolSize();
+        return Executors.newFixedThreadPool(poolSize, r -> {
+            Thread t = new Thread(r, "jozef-event");
+            t.setDaemon(true);
+            return t;
+        });
+    }
+
+    // ─── Event Bus ──────────────────────────────────
+
+    @Bean(destroyMethod = "close")
+    public EventBus eventBus(ExecutorService eventExecutor, EventLogger eventLogger) {
+        AsyncEventBus bus = new AsyncEventBus(eventExecutor);
+        bus.register(Event.class, eventLogger);
+        return bus;
+    }
+
+    @Bean
+    public EventLogger eventLogger() {
+        return new EventLogger();
+    }
+
+    // ─── Command Bus ────────────────────────────────
+
+    @Bean
+    public CommandBus commandBus() {
+        return new CommandBusImpl();
+    }
+
+    // ─── Tool Registry (built-in tools) ─────────────
+
+    @Bean
+    public ToolRegistry toolRegistry() {
+        ToolRegistry registry = new ToolRegistry();
+        // Built-in, always-available tools.
+        registry.register(new GetTimeAction());
+        return registry;
+    }
+
+    // ─── Security ───────────────────────────────────
+
+    @Bean
+    public PermissionManager permissionManager() {
+        return new PermissionManager();
+    }
+
+    @Bean
+    public ConfirmationService confirmationService() {
+        // Fail-safe default: deny CONFIRM/DANGEROUS until an interactive
+        // confirmation UI (overlay/console) is configured.
+        return new AutoDenyConfirmationService();
+    }
+
+    // ─── Plugin Loader ──────────────────────────────
+
+    @Bean
+    public PluginLoader pluginLoader(ToolRegistry toolRegistry,
+                                     JozefProperties props,
+                                     List<Plugin> plugins) {
+        PluginLoader loader = new PluginLoader(toolRegistry, props.plugins());
+        loader.loadAll(plugins);
+        return loader;
+    }
+
+    // ─── Session ────────────────────────────────────
+
+    @Bean
+    public SessionManager sessionManager() {
+        return new SessionManager();
+    }
+
+    // ─── Context / Persona ──────────────────────────
+
+    @Bean
+    public SystemPromptProvider systemPromptProvider(JozefProperties props) {
+        return new ConfigurableSystemPromptProvider(props.persona());
+    }
+
+    // ─── Agent Runtime ──────────────────────────────
+
+    @Bean
+    public AgentRuntime agentRuntime(LLMCapability llm,
+                                     ToolRegistry toolRegistry,
+                                     SystemPromptProvider systemPromptProvider,
+                                     EventBus eventBus,
+                                     SessionManager sessionManager,
+                                     PermissionManager permissionManager,
+                                     ConfirmationService confirmationService,
+                                     JozefProperties props) {
+        return new AgentRuntime(
+                llm.provider(),
+                toolRegistry,
+                systemPromptProvider,
+                eventBus,
+                sessionManager,
+                permissionManager,
+                confirmationService,
+                props.agent(),
+                props.llm());
+    }
+
+    // ─── Capability Loader ──────────────────────────
+
+    @Bean
+    public CapabilityLoader capabilityLoader(List<Capability> capabilities, EventBus eventBus) {
+        return new CapabilityLoader(capabilities, eventBus);
+    }
+
+    // ─── Health Monitor ─────────────────────────────
+
+    @Bean
+    public HealthMonitor healthMonitor(EventBus eventBus, JozefProperties props) {
+        return new HealthMonitor(eventBus, props.runtime().health().checkIntervalSeconds());
+    }
+
+    // ─── Application Lifecycle ──────────────────────
+
+    @Bean
+    public ApplicationLifecycle applicationLifecycle(
+            CapabilityLoader capabilityLoader,
+            EventBus eventBus,
+            @Value("${spring.application.version:0.0.1}") String version) {
+        return new ApplicationLifecycle(capabilityLoader, eventBus, version);
+    }
+
+    // ─── Capabilities ──────────────────────────────
+
+    @Bean
+    public SpeechCapability speechCapability(JozefProperties props) {
+        return new SpeechCapability(props.speech());
+    }
+
+    @Bean
+    public LLMCapability llmCapability(JozefProperties props) {
+        return new LLMCapability(props.llm());
+    }
+
+    @Bean
+    public AutomationCapability automationCapability(JozefProperties props, ToolRegistry toolRegistry) {
+        return new AutomationCapability(props.automation(), toolRegistry);
+    }
+
+    @Bean
+    public BrowserCapability browserCapability(JozefProperties props, ToolRegistry toolRegistry) {
+        return new BrowserCapability(props.browser(), toolRegistry);
+    }
+}
