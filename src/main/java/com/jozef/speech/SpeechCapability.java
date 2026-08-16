@@ -1,34 +1,74 @@
 package com.jozef.speech;
 
 import com.jozef.configuration.SpeechProperties;
+import com.jozef.configuration.WakeWordProperties;
 import com.jozef.core.capabilities.Capability;
 import com.jozef.speech.console.ConsoleInputRecognizer;
 import com.jozef.speech.console.ConsoleSpeechSynthesizer;
 import com.jozef.speech.tts.EdgeTtsSynthesizer;
 import com.jozef.speech.tts.WindowsSpeechSynthesizer;
+import com.jozef.speech.vosk.VoskSpeechRecognizer;
+import com.jozef.speech.vosk.VoskWakeWordDetector;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Provides SpeechRecognizer (STT) and SpeechSynthesizer (TTS) to the system,
- * chosen from configuration.
+ * Provides {@link SpeechRecognizer} (STT) and {@link SpeechSynthesizer} (TTS)
+ * to the system, chosen from configuration, plus an optional
+ * {@link WakeWordDetector}.
  *
- * STT is currently console-based for development; the interface is replaceable
- * so a local Whisper/Vosk implementation can be dropped in without touching the agent.
+ * STT providers: {@code console} (dev fallback) or {@code vosk} (offline local
+ * model). When Vosk's model is missing, we fall back to console and log
+ * download instructions.
  */
 @Slf4j
 public class SpeechCapability implements Capability {
 
+    private static final String DEFAULT_VOSK_MODEL = "data/vosk-model-small-pl-0.22";
+
     private final SpeechRecognizer recognizer;
     private final SpeechSynthesizer synthesizer;
+    private final WakeWordDetector wakeWordDetector;
 
-    public SpeechCapability(SpeechProperties props) {
+    public SpeechCapability(SpeechProperties props, WakeWordProperties wakeWord) {
         this.recognizer = createRecognizer(props);
         this.synthesizer = createSynthesizer(props);
+        this.wakeWordDetector = createWakeWordDetector(props, wakeWord);
     }
 
     private SpeechRecognizer createRecognizer(SpeechProperties props) {
-        // Future: switch on props.stt().provider() → whisper-local / vosk / azure / deepgram
+        String provider = props != null && props.stt() != null && props.stt().provider() != null
+                ? props.stt().provider().toLowerCase()
+                : "console";
+
+        if ("vosk".equals(provider)) {
+            String modelPath = resolveModelPath(props.stt().model());
+            if (VoskSpeechRecognizer.isModelAvailable(modelPath)) {
+                log.info("Using Vosk STT with model {}", modelPath);
+                return new VoskSpeechRecognizer(modelPath);
+            }
+            log.warn("Vosk model not found at '{}' — falling back to console input.", modelPath);
+            log.warn("Pobierz model z https://alphacephei.com/vosk/models "
+                    + "(np. vosk-model-small-pl-0.22) i rozpakuj do katalogu data/.");
+        }
         return new ConsoleInputRecognizer();
+    }
+
+    private WakeWordDetector createWakeWordDetector(SpeechProperties props, WakeWordProperties wakeWord) {
+        if (wakeWord == null || !wakeWord.enabled()) {
+            return null;
+        }
+        if (!"vosk".equals(recognizer.name())) {
+            log.warn("Wake word requires vosk STT (current STT: {}) — wake word disabled.",
+                    recognizer.name());
+            return null;
+        }
+        String modelPath = resolveModelPath(props != null && props.stt() != null ? props.stt().model() : null);
+        log.info("Wake word enabled: \"{}\"", wakeWord.word());
+        return new VoskWakeWordDetector(modelPath, wakeWord.word());
+    }
+
+    private String resolveModelPath(String configured) {
+        return (configured == null || configured.isBlank()) ? DEFAULT_VOSK_MODEL : configured;
     }
 
     private SpeechSynthesizer createSynthesizer(SpeechProperties props) {
@@ -51,6 +91,11 @@ public class SpeechCapability implements Capability {
         return synthesizer;
     }
 
+    /** May be null when the wake word is disabled or unsupported. */
+    public WakeWordDetector wakeWordDetector() {
+        return wakeWordDetector;
+    }
+
     @Override
     public String name() {
         return "speech";
@@ -63,8 +108,9 @@ public class SpeechCapability implements Capability {
 
     @Override
     public void initialize() {
-        log.info("Speech capability initialized: stt={}, tts={}",
-                recognizer.name(), synthesizer.name());
+        log.info("Speech capability initialized: stt={}, tts={}, wake-word={}",
+                recognizer.name(), synthesizer.name(),
+                wakeWordDetector != null ? wakeWordDetector.name() : "off");
     }
 
     @Override

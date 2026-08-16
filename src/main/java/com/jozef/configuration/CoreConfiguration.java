@@ -210,7 +210,7 @@ public class CoreConfiguration {
 
     @Bean
     public SpeechCapability speechCapability(JozefProperties props) {
-        return new SpeechCapability(props.speech());
+        return new SpeechCapability(props.speech(), props.wakeword());
     }
 
     @Bean

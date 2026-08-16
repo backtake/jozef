@@ -52,7 +52,8 @@ Główne pakiety:
 - `overlay` — `Overlay` / `SwingOverlay` / `OverlayCapability` (HUD statusu)
 - `tray` — `TrayCapability` + autostart + globalny hotkey (JNativeHook)
 - `llm` — `LLMProvider` + adaptery (ollama, openai, deepseek)
-- `speech` — `SpeechRecognizer` / `SpeechSynthesizer` / `SpeechTextCleaner` + TTS Edge (neuralne)
+- `speech` — `SpeechRecognizer` / `SpeechSynthesizer` / `WakeWordDetector` / `SpeechTextCleaner`
+  + TTS Edge (neuralne) + STT Vosk (lokalny, offline) + mikrofon (`MicrophoneAudioSource`)
 - `automation` — `DesktopAutomation` + implementacja Windows
 - `browser` — `BrowserService` + implementacja Playwright
 - `configuration` — `jozef.*` (`@ConfigurationProperties`)
@@ -73,6 +74,7 @@ Główne pakiety:
 | 5 | Agent execution loop | ✅ `AgentRuntime` z wieloetapową pętlą tool calling + eventy + sesja |
 | 6 | Windows automation | ✅ `DesktopAutomation` + `WindowsAutomationService` (AWT Robot) |
 | 8 | TTS | ✅ Edge TTS (darmowe neuralne głosy PL) + Windows System.Speech + konsola |
+| 9 | Wake word | ✅ `WakeWordDetector` + `VoskWakeWordDetector` („hej Jozef", sterowane konfiguracją) |
 | 10 | Browser / Playwright | ✅ `BrowserService` + Playwright (channel chrome/msedge, `executable-path` np. Brave, profil trwały) |
 | 11 | Google OAuth | ✅ `GoogleAuthService` (desktop loopback flow), `GoogleTokenStore`, auto-refresh |
 | 12 | Calendar | ✅ `GoogleCalendarService` + `CalendarEvent` + tools `calendar_*` |
@@ -91,9 +93,10 @@ Dodatkowo zrobione:
   `open_application`, `close_application`, `type_text`, `press_keys`, `search_web`, `take_screenshot`.
 - Narzędzia przeglądarki: `browser_navigate`, `browser_search`, `browser_click`, `browser_type`,
   `browser_read_text`, `browser_get_page_text`, `browser_get_title`, `browser_get_url`, `browser_screenshot`.
-- Testy jednostkowe (42 zielone): EventBus, CommandBus, ToolRegistry, Session, AgentRuntime, EdgeTts,
+- Testy jednostkowe (51 zielonych): EventBus, CommandBus, ToolRegistry, Session, AgentRuntime, EdgeTts,
   GoogleTokenStore, GoogleCalendarService, GmailService, FileLongTermMemory, DefaultContextAggregator,
-  OverlayCapability, WindowsAutostartManager, NativeGlobalHotkeyService.
+  OverlayCapability, WindowsAutostartManager, NativeGlobalHotkeyService, Vosk (STT/wake-word).
+- Vosk (lokalny offline STT) + wake word; natywne biblioteki Vosk/JNativeHook ekstrahowane z fat-jara do `data/native/`.
 - `ConsoleConfirmationService` — interaktywne potwierdzenie y/n (CONFIRM/DANGEROUS).
 - Google: leniwe OAuth + Calendar + Gmail (zakresy: calendar, gmail.send, gmail.readonly).
 - Overlay sterowany eventami; tray + autostart + globalny hotkey; pamięć długoterminowa + kontekst.
@@ -104,13 +107,12 @@ Dodatkowo zrobione:
 
 | Faza | Zakres | Czego brakuje |
 |------|--------|----------------|
-| 7 | STT + VAD | Interfejs `SpeechRecognizer` + fallback konsolowy ✅; **prawdziwy lokalny STT (Whisper/Vosk) brak**, **VAD brak** |
+| 7 | STT + VAD | `SpeechRecognizer` + Vosk (lokalny STT) ✅ + fallback konsolowy ✅; **VAD brak** |
 
 ### ❌ Do zrobienia (kolejne fazy)
 
 | Faza | Zakres | Uwagi |
 |------|--------|-------|
-| 9 | Wake word | `WakeWordDetector` (np. "Jozef") — brak |
 | 18 | Proactive background agent | `CalendarWatcher`, `GmailWatcher`, `TimerScheduler` — brak |
 | 19 | Advanced planning / autonomous execution | plan → execute → observe → correct — brak |
 
@@ -129,12 +131,12 @@ Dodatkowo zrobione:
 Wymagane i ich status:
 
 - [x] proces w tle (Spring Boot no-web)
-- [ ] mikrofon + prawdziwy STT (obecnie konsola)
+- [x] mikrofon + prawdziwy STT (Vosk, lokalny offline; fallback konsola)
 - [x] LLM provider (ollama/openai/deepseek)
 - [x] tool calling (`AgentRuntime`)
 - [x] Windows automation (realne mouse/keyboard/clipboard)
 - [x] TTS (Edge — neuralne głosy PL)
-- [ ] wake word (faza 9)
+- [x] wake word (faza 9)
 
 > Automatyzacja działa na realnej sesji desktopowej (AWT Robot). W środowisku headless (CI/SSH) capability „automation" kończy się błędem, ale runtime zostaje przy życiu — to zamierzone, zgodnie z wymogiem odporności.
 
@@ -142,7 +144,7 @@ Wymagane i ich status:
 
 ## Kolejność dalszych prac (bez przeskakiwania)
 
-1. **MVP 1 domknąć:** realny STT (lokalny, np. Vosk/Whisper) → wake word. (VAD na sam koniec.)
+1. **MVP 1:** ✅ mikrofon + Vosk STT + wake word. (VAD na sam koniec.)
 2. **MVP 2:** ✅ Google OAuth (11) → Calendar (12) → Gmail (13, z potwierdzeniem wysyłki).
 3. **MVP 3:** ✅ overlay (14) → system tray + autostart + hotkey (15) → pamięć + kontekst (16).
 4. **Faza 18–19:** proaktywność i planowanie.
@@ -176,17 +178,23 @@ Konfiguracja: `src/main/resources/application.yml` (sekcja `jozef.*`). Sekrety t
 
 ## Punkt wznowienia (następna sesja)
 
-Zrobione w tej sesji — **MVP 3 w całości**:
+Zrobione w tej sesji — **MVP 1 domknięte** (STT + wake word):
 
-- ✅ **Faza 14: Overlay** — `OverlayCapability` + `SwingOverlay` (frameless, always-on-top, przezroczysty). Stany idle/listening/thinking/speaking/confirm sterowane eventami (`ListeningStarted`, `UserCommandReceived`, `ConfirmationRequested`, `SpeechSynthesisStarted/Completed`).
-- ✅ **Faza 15: Tray + autostart + hotkey** — `TrayCapability` (ikona + menu „Zakończ"), `WindowsAutostartManager` (klucz HKCU Run przez `reg`), `NativeGlobalHotkeyService` (JNativeHook, hotkey `ctrl alt J`). Naprawione ładowanie natywnej biblioteki w fat-jarze (ekstrakcja do `data/native/` + `ExtractedLibraryLocator`).
-- ✅ **Faza 16: Memory + Context** — `FileLongTermMemory` (`data/memory.json`) + `DefaultContextAggregator` (notatki + ostatnie akcje w system prompt) + historia rozmowy wysyłana do LLM. Narzędzia: `remember_note`, `recall_notes`, `forget_note`.
-- ✅ `VoiceLoop`/`AgentRuntime` publikują zdarzenia stanu i konfirmacji (dla overlay).
-- ✅ 42 testy zielone, pełny build OK, smoke-test uruchomienia (tray + hotkey) OK.
+- ✅ **Faza 7 (STT):** `VoskSpeechRecognizer` — lokalny, offline STT (model Vosk, 16 kHz mono) + `MicrophoneAudioSource` (TargetDataLine). Fallback do konsoli, gdy modelu brak.
+- ✅ **Faza 9 (wake word):** `WakeWordDetector` + `VoskWakeWordDetector` — ciągłe nasłuchiwanie, detekcja „hej Jozef" i wyciągnięcie komendy po słowie budzącym. `VoiceLoop` używa detektora (jeśli aktywny).
+- ✅ Natywne biblioteki Vosk ekstrahowane z fat-jara do `data/native/vosk` + `jna.library.path` (analogicznie do JNativeHook).
+- ✅ Konfiguracja: `speech.stt.provider: vosk`, `speech.stt.model`, `wakeword.enabled: true`.
+- ✅ 51 testów zielonych, pełny build OK, smoke-test (fallback konsola + tray + hotkey) OK.
+
+**Żeby włączyć głos (pierwsze uruchomienie):**
+
+1. Pobierz model: <https://alphacephei.com/vosk/models> → np. `vosk-model-small-pl-0.22` (~40 MB).
+2. Rozpakuj do `data/vosk-model-small-pl-0.22` (katalog `data/` jest git-ignored).
+3. Uruchom — log powinien pokazać `stt=vosk, wake-word=vosk-wake-word`.
 
 **Najbliższe kroki:**
 
-1. **MVP 1 domknąć:** lokalny STT (Vosk/Whisper) → wake word (VAD na sam koniec)
-2. **Faza 18–19:** proaktywność (CalendarWatcher/GmailWatcher/TimerScheduler) i planowanie
+1. **VAD** (faza 7, ostatnia część) — segmentacja mowy/ciszy, by nie ciąć komend.
+2. **Faza 18–19:** proaktywność (CalendarWatcher/GmailWatcher/TimerScheduler) i planowanie.
 
 Sekrety tylko przez zmienne środowiskowe: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.

@@ -35,8 +35,8 @@ jozef:
   # ─── Speech ─────────────────────────────────────────
   speech:
     stt:
-      provider: console            # console | whisper-local | vosk | deepgram | windows
-      model: base
+      provider: vosk              # vosk | console
+      model: data/vosk-model-small-pl-0.22   # ścieżka do rozpakowanego modelu Vosk
     tts:
       provider: edge              # edge | windows | console | elevenlabs | azure
       voice: pl-PL-ZofiaNeural    # pl-PL-ZofiaNeural | pl-PL-MarekNeural (darmowe neuralne)
@@ -53,7 +53,7 @@ jozef:
 
   # ─── Wake Word ──────────────────────────────────────
   wakeword:
-    enabled: false
+    enabled: true
     word: "hej jozef"
 
   # ─── Automation ─────────────────────────────────────

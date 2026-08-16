@@ -44,7 +44,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
         healthMonitor.start();
 
         // Start the voice loop on a background thread
-        VoiceLoop voiceLoop = new VoiceLoop(agent, speech.recognizer(), speech.synthesizer(), eventBus);
+        VoiceLoop voiceLoop = new VoiceLoop(agent, speech.recognizer(), speech.synthesizer(), eventBus, speech.wakeWordDetector());
         Thread voiceThread = new Thread(voiceLoop, "jozef-voice-loop");
         voiceThread.setDaemon(false); // keep app alive
         voiceThread.start();

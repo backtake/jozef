@@ -12,6 +12,7 @@ It is a background desktop agent: voice in, LLM reasoning, tool execution, voice
 - Gradle (Kotlin DSL)
 - Lombok
 - JUnit 5 + AssertJ
+- Vosk (offline speech-to-text) + JNativeHook (global hotkey)
 
 ## Architecture
 
@@ -44,7 +45,8 @@ Key packages:
 - `core.session` / `core.context` — conversation memory, system prompt/persona, context aggregation
 - `core.memory` — `LongTermMemory` / `FileLongTermMemory` + `remember_note` / `recall_notes` / `forget_note`
 - `llm` — provider abstraction (`LLMProvider`) + Ollama/OpenAI/DeepSeek adapters
-- `speech` — replaceable `SpeechRecognizer` / `SpeechSynthesizer`
+- `speech` — replaceable `SpeechRecognizer` / `SpeechSynthesizer` / `WakeWordDetector`
+  (console + Vosk offline STT; Edge TTS)
 - `automation` — `DesktopAutomation` abstraction + Windows implementation
 - `overlay` — `Overlay` / `SwingOverlay` (status HUD)
 - `tray` — `TrayCapability` + autostart + global hotkey (JNativeHook)
@@ -65,8 +67,9 @@ cmd //c "gradlew.bat bootRun"
 ```
 
 Jozef starts as a background process (no web server), initializes capabilities,
-and enters the voice loop. The default STT is console input (type commands);
-the default TTS is Edge (neural Polish voices).
+and enters the voice loop. STT defaults to Vosk (offline, local model); if the
+model is missing it falls back to console input. The wake word is "hej Jozef".
+The default TTS is Edge (neural Polish voices).
 
 ## Configuration
 
@@ -84,6 +87,7 @@ environment variables (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`,
 ## Status
 
 First vertical slice (voice → LLM → tools → Windows automation → voice) is wired
-end-to-end. MVP 2 (Playwright browser, Google OAuth/Calendar/Gmail) and MVP 3
-(overlay HUD, system tray + autostart + global hotkey, long-term memory +
-context) are also done. Remaining roadmap: VAD, wake word, proactive agent.
+end-to-end, including offline Vosk STT and the "hej Jozef" wake word. MVP 2
+(Playwright browser, Google OAuth/Calendar/Gmail) and MVP 3 (overlay HUD, system
+tray + autostart + global hotkey, long-term memory + context) are also done.
+Remaining roadmap: VAD, proactive agent.

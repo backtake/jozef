@@ -47,6 +47,9 @@ dependencies {
     // Global hotkey (Windows/macOS/Linux)
     implementation("com.github.kwhat:jnativehook:2.2.2")
 
+    // Offline speech-to-text (Vosk) + wake word
+    implementation("com.alphacephei:vosk:0.3.45")
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testCompileOnly("org.projectlombok:lombok")

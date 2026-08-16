@@ -7,6 +7,7 @@ import com.jozef.core.events.EventBus;
 import com.jozef.speech.SpeechRecognizer;
 import com.jozef.speech.SpeechSynthesizer;
 import com.jozef.speech.SpeechTextCleaner;
+import com.jozef.speech.WakeWordDetector;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Set;
@@ -29,13 +30,16 @@ public class VoiceLoop implements Runnable {
     private final SpeechRecognizer recognizer;
     private final SpeechSynthesizer synthesizer;
     private final EventBus eventBus;
+    private final WakeWordDetector wakeWordDetector;
     private final AtomicBoolean running = new AtomicBoolean(true);
 
-    public VoiceLoop(AgentRuntime agent, SpeechRecognizer recognizer, SpeechSynthesizer synthesizer, EventBus eventBus) {
+    public VoiceLoop(AgentRuntime agent, SpeechRecognizer recognizer, SpeechSynthesizer synthesizer,
+                     EventBus eventBus, WakeWordDetector wakeWordDetector) {
         this.agent = agent;
         this.recognizer = recognizer;
         this.synthesizer = synthesizer;
         this.eventBus = eventBus;
+        this.wakeWordDetector = wakeWordDetector;
     }
 
     public void stop() {
@@ -50,7 +54,18 @@ public class VoiceLoop implements Runnable {
         while (running.get()) {
             try {
                 eventBus.publish(new AgentEvents.ListeningStarted());
-                String input = recognizer.listen();
+
+                String input;
+                if (wakeWordDetector != null) {
+                    input = wakeWordDetector.awaitWakeWord();
+                    if (input == null || input.isBlank()) {
+                        // User said only the wake word — now listen for the command.
+                        input = recognizer.listen();
+                    }
+                } else {
+                    input = recognizer.listen();
+                }
+
                 if (input == null || input.isBlank()) {
                     continue;
                 }
