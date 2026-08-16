@@ -66,8 +66,21 @@ jozef:
   browser:
     enabled: true
     headless: false                # true = ukryta przeglądarka
-    channel: msedge                # msedge | chrome | (puste = bundled chromium)
+    channel: chrome                # chrome | msedge | (puste = bundled chromium)
     profile-dir: ""                # opcjonalny trwały profil (zalogowane sesje)
+    executable-path: ""            # ścieżka do binary (np. Brave) — nadpisuje channel
+
+  # ─── Google (OAuth + Calendar + Gmail) ────────────────
+  google:
+    enabled: true
+    tokens-file: data/google-tokens.json   # zapisane tokeny OAuth (git-ignored)
+    calendar-id: primary
+    # client-id / client-secret czytane ze zmiennych środowiskowych:
+    #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+
+  # ─── Security ─────────────────────────────────────
+  security:
+    confirmation-provider: console # console | auto-deny
 
   # ─── Plugins ────────────────────────────────────────
   plugins:

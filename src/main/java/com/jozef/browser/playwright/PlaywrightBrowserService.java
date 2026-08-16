@@ -26,16 +26,18 @@ public class PlaywrightBrowserService implements BrowserService {
     private final boolean headless;
     private final String channel;
     private final String profileDir;
+    private final String executablePath;
 
     private Playwright playwright;
     private Browser browser;
     private BrowserContext context;
     private Page page;
 
-    public PlaywrightBrowserService(boolean headless, String channel, String profileDir) {
+    public PlaywrightBrowserService(boolean headless, String channel, String profileDir, String executablePath) {
         this.headless = headless;
         this.channel = channel;
         this.profileDir = profileDir;
+        this.executablePath = executablePath;
     }
 
     @Override
@@ -54,12 +56,18 @@ public class PlaywrightBrowserService implements BrowserService {
             if (channel != null && !channel.isBlank()) {
                 options.setChannel(channel);
             }
+            if (executablePath != null && !executablePath.isBlank()) {
+                options.setExecutablePath(Path.of(executablePath));
+            }
             context = chromium.launchPersistentContext(Path.of(profileDir), options);
             page = context.pages().isEmpty() ? context.newPage() : context.pages().get(0);
         } else {
             BrowserType.LaunchOptions options = new BrowserType.LaunchOptions().setHeadless(headless);
             if (channel != null && !channel.isBlank()) {
                 options.setChannel(channel);
+            }
+            if (executablePath != null && !executablePath.isBlank()) {
+                options.setExecutablePath(Path.of(executablePath));
             }
             browser = chromium.launch(options);
             context = browser.newContext();

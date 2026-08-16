@@ -70,8 +70,11 @@ Główne pakiety:
 | 5 | Agent execution loop | ✅ `AgentRuntime` z wieloetapową pętlą tool calling + eventy + sesja |
 | 6 | Windows automation | ✅ `DesktopAutomation` + `WindowsAutomationService` (AWT Robot) |
 | 8 | TTS | ✅ Edge TTS (darmowe neuralne głosy PL) + Windows System.Speech + konsola |
-| 10 | Browser / Playwright | ✅ `BrowserService` + Playwright (channel msedge/chrome, profil trwały) |
-| 17 | Permissions + confirmations | ✅ `PermissionManager`, `ConfirmationService` (fail-safe) |
+| 10 | Browser / Playwright | ✅ `BrowserService` + Playwright (channel chrome/msedge, `executable-path` np. Brave, profil trwały) |
+| 11 | Google OAuth | ✅ `GoogleAuthService` (desktop loopback flow), `GoogleTokenStore`, auto-refresh |
+| 12 | Calendar | ✅ `GoogleCalendarService` + `CalendarEvent` + tools `calendar_*` |
+| 13 | Gmail | ✅ `GmailService` + `GmailMessage` + tools `gmail_*` (send z potwierdzeniem) |
+| 17 | Permissions + confirmations | ✅ `PermissionManager`, `ConfirmationService` (console + auto-deny fail-safe) |
 
 Dodatkowo zrobione:
 
@@ -82,7 +85,10 @@ Dodatkowo zrobione:
   `open_application`, `close_application`, `type_text`, `press_keys`, `search_web`, `take_screenshot`.
 - Narzędzia przeglądarki: `browser_navigate`, `browser_search`, `browser_click`, `browser_type`,
   `browser_read_text`, `browser_get_page_text`, `browser_get_title`, `browser_get_url`, `browser_screenshot`.
-- Testy jednostkowe (17 zielonych): EventBus, CommandBus, ToolRegistry, Session, AgentRuntime, EdgeTts.
+- Testy jednostkowe (28 zielonych): EventBus, CommandBus, ToolRegistry, Session, AgentRuntime, EdgeTts,
+  GoogleTokenStore, GoogleCalendarService, GmailService.
+- `ConsoleConfirmationService` — interaktywne potwierdzenie y/n (CONFIRM/DANGEROUS).
+- Google: leniwe OAuth + Calendar + Gmail (zakresy: calendar, gmail.send, gmail.readonly).
 - Cleanup: usunięty legacy `common`, stara domena Goal/Plan/Task/Schedule, SQLite, stare docs.
 - `README.md`, `VISION.md`, `CHANGELOG.md` zaktualizowane.
 
@@ -98,9 +104,6 @@ Dodatkowo zrobione:
 | Faza | Zakres | Uwagi |
 |------|--------|-------|
 | 9 | Wake word | `WakeWordDetector` (np. "Jozef") — brak |
-| 11 | Google OAuth | `GoogleAuthenticationService` (desktop OAuth flow) — brak |
-| 12 | Calendar | `GoogleCalendarService` + tools `calendar_*` — brak |
-| 13 | Gmail | `GmailService` + tools `gmail_*` (send z potwierdzeniem) — brak |
 | 14 | Overlay | overlay UI (stan: idle/listening/thinking/speaking/confirm) — brak (jest tylko config) |
 | 15 | System tray + Windows startup | tray icon, menu, autostart, globalny hotkey — brak |
 | 18 | Proactive background agent | `CalendarWatcher`, `GmailWatcher`, `TimerScheduler` — brak |
@@ -135,7 +138,7 @@ Wymagane i ich status:
 ## Kolejność dalszych prac (bez przeskakiwania)
 
 1. **MVP 1 domknąć:** realny STT (lokalny, np. Vosk/Whisper) → wake word. (VAD na sam koniec.)
-2. **MVP 2:** Google OAuth (11) → Calendar (12) → Gmail (13, z potwierdzeniem wysyłki). (Playwright ✅)
+2. **MVP 2:** ✅ Google OAuth (11) → Calendar (12) → Gmail (13, z potwierdzeniem wysyłki).
 3. **MVP 3:** overlay (14) → system tray + autostart (15) → pamięć + kontekst (16).
 4. **Faza 18–19:** proaktywność i planowanie.
 
@@ -168,20 +171,26 @@ Konfiguracja: `src/main/resources/application.yml` (sekcja `jozef.*`). Sekrety t
 
 ## Punkt wznowienia (następna sesja)
 
-Zrobione w ostatniej sesji (niezacommitowane — working tree):
+Zrobione w tej sesji — **MVP 2 w całości**:
 
-- ✅ TTS Edge (neuralne głosy PL) + JLayer do MP3 — **przetestowane, działa**
-- ✅ Provider LLM **DeepSeek** (oprócz ollama/openai)
-- ✅ Poprawiony system prompt (styl mówiony) + `SpeechTextCleaner`
-- ✅ Naprawa trybu headless (AWT Robot)
-- ✅ **Faza 10: Playwright** — `BrowserService` + 9 narzędzi `browser_*` — **przetestowane, działa**
-- ✅ Logi wyciszone do INFO
-- ✅ 17 testów zielonych, pełny build OK, flow end-to-end zweryfikowany
+- ✅ **Faza 11: Google OAuth** — `GoogleAuthService` (desktop loopback flow RFC 8252), `GoogleTokenStore` (persystencja `data/google-tokens.json`), automatyczne odświeżanie tokenu. Logowanie **leniwe** — przy pierwszym użyciu narzędzia.
+- ✅ **Faza 12: Calendar** — `GoogleCalendarService` + `CalendarEvent` + narzędzia `calendar_list_events`, `calendar_create_event`, `calendar_delete_event` (CONFIRM).
+- ✅ **Faza 13: Gmail** — `GmailService` + `GmailMessage` + narzędzia `gmail_send` (CONFIRM), `gmail_list_recent`, `gmail_read_message`.
+- ✅ `ConsoleConfirmationService` — interaktywne potwierdzenie y/n dla CONFIRM/DANGEROUS (domyślne; `auto-deny` jako fail-safe).
+- ✅ Przeglądarka: domyślnie **Chrome** zamiast Edge + opcja `executable-path` (np. **Brave**).
+- ✅ 28 testów zielonych, pełny build OK.
+
+**Konfiguracja Google (pierwsze uruchomienie):**
+
+1. Utwórz w Google Cloud projekt + OAuth client typu „Desktop app" (redirect `http://localhost`).
+2. Ustaw zmienne środowiskowe: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+3. Użyj narzędzia kalendarza/Gmail — otworzy się przeglądarka, zaloguj się i zaakceptuj zakresy.
+4. Tokeny zapisują się w `data/google-tokens.json` (git-ignored).
 
 **Najbliższe kroki (do wyboru):**
 
-1. **MVP 2:** Google OAuth (11) → Calendar (12) → Gmail (13, z potwierdzeniem wysyłki)
-2. **MVP 1 domknąć:** lokalny STT (Vosk/Whisper) → wake word (VAD na sam koniec)
-3. **MVP 3:** overlay (14) → system tray + autostart (15) → pamięć + kontekst (16)
+1. **MVP 1 domknąć:** lokalny STT (Vosk/Whisper) → wake word (VAD na sam koniec)
+2. **MVP 3:** overlay (14) → system tray + autostart (15) → pamięć + kontekst (16)
+3. **Faza 18–19:** proaktywność i planowanie
 
-Sekrety (klucze API) tylko przez zmienne środowiskowe: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`.
+Sekrety tylko przez zmienne środowiskowe: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.

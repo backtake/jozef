@@ -51,7 +51,7 @@ public class BrowserCapability implements Capability {
             return;
         }
 
-        browser = new PlaywrightBrowserService(props.headless(), props.channel(), props.profileDir());
+        browser = new PlaywrightBrowserService(props.headless(), props.channel(), props.profileDir(), props.executablePath());
         registerTools();
         log.info("Browser capability initialized ({} tools registered).", toolRegistry.size());
     }

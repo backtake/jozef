@@ -20,11 +20,14 @@ import com.jozef.core.plugins.Plugin;
 import com.jozef.core.plugins.PluginLoader;
 import com.jozef.core.security.AutoDenyConfirmationService;
 import com.jozef.core.security.ConfirmationService;
+import com.jozef.core.security.ConsoleConfirmationService;
 import com.jozef.core.security.PermissionManager;
 import com.jozef.core.session.SessionManager;
 import com.jozef.core.tool.ToolRegistry;
+import com.jozef.google.GoogleCapability;
 import com.jozef.llm.LLMCapability;
 import com.jozef.speech.SpeechCapability;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -41,6 +44,7 @@ import java.util.concurrent.Executors;
  */
 @Configuration
 @EnableConfigurationProperties(JozefProperties.class)
+@Slf4j
 public class CoreConfiguration {
 
     // ─── Executor Service ───────────────────────────
@@ -94,10 +98,20 @@ public class CoreConfiguration {
     }
 
     @Bean
-    public ConfirmationService confirmationService() {
-        // Fail-safe default: deny CONFIRM/DANGEROUS until an interactive
-        // confirmation UI (overlay/console) is configured.
-        return new AutoDenyConfirmationService();
+    public ConfirmationService confirmationService(JozefProperties props) {
+        // Fail-safe default: deny CONFIRM/DANGEROUS unless an interactive
+        // confirmation UI (console/overlay) is configured.
+        String provider = props.security() != null && props.security().confirmationProvider() != null
+                ? props.security().confirmationProvider().toLowerCase()
+                : "console";
+        return switch (provider) {
+            case "auto-deny" -> new AutoDenyConfirmationService();
+            case "console" -> new ConsoleConfirmationService();
+            default -> {
+                log.warn("Unknown confirmation provider '{}' — falling back to console.", provider);
+                yield new ConsoleConfirmationService();
+            }
+        };
     }
 
     // ─── Plugin Loader ──────────────────────────────
@@ -192,5 +206,10 @@ public class CoreConfiguration {
     @Bean
     public BrowserCapability browserCapability(JozefProperties props, ToolRegistry toolRegistry) {
         return new BrowserCapability(props.browser(), toolRegistry);
+    }
+
+    @Bean
+    public GoogleCapability googleCapability(JozefProperties props, ToolRegistry toolRegistry) {
+        return new GoogleCapability(props.google(), toolRegistry);
     }
 }

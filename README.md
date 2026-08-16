@@ -27,9 +27,9 @@ It is a background desktop agent: voice in, LLM reasoning, tool execution, voice
         │             │       │
         ↓             ↓       ↓
    STT / TTS    Providers   ├── Windows automation
-   (replaceable)  Ollama     ├── Browser (Playwright, planned)
-                  OpenAI     ├── Gmail (planned)
-                             └── Calendar (planned)
+   (replaceable)  Ollama     ├── Browser (Playwright)
+                  OpenAI     ├── Gmail
+                  DeepSeek   └── Calendar
 ```
 
 Key packages:
@@ -42,9 +42,10 @@ Key packages:
 - `core.capabilities` / `core.lifecycle` — capability & lifecycle management
 - `core.security` — `PermissionManager`, `ConfirmationService`
 - `core.session` / `core.context` — conversation memory and system prompt/persona
-- `llm` — provider abstraction (`LLMProvider`) + Ollama/OpenAI adapters
+- `llm` — provider abstraction (`LLMProvider`) + Ollama/OpenAI/DeepSeek adapters
 - `speech` — replaceable `SpeechRecognizer` / `SpeechSynthesizer`
 - `automation` — `DesktopAutomation` abstraction + Windows implementation
+- `google` — `GoogleAuthService` (OAuth) + `GoogleCalendarService` / `GmailService`
 - `configuration` — Spring `@ConfigurationProperties` (`jozef.*`)
 - `bootstrap` — entry point + voice loop
 
@@ -62,12 +63,14 @@ cmd //c "gradlew.bat bootRun"
 
 Jozef starts as a background process (no web server), initializes capabilities,
 and enters the voice loop. The default STT is console input (type commands);
-the default TTS is Windows System.Speech.
+the default TTS is Edge (neural Polish voices).
 
 ## Configuration
 
 Everything is configured under `jozef.*` in `src/main/resources/application.yml`.
-Secrets (e.g. OpenAI API keys) are read from environment variables, never committed.
+Secrets (OpenAI/DeepSeek API keys, Google OAuth credentials) are read from
+environment variables (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`,
+`GOOGLE_CLIENT_SECRET`), never committed.
 
 ## Test
 
@@ -78,5 +81,6 @@ Secrets (e.g. OpenAI API keys) are read from environment variables, never commit
 ## Status
 
 First vertical slice (voice → LLM → tools → Windows automation → voice) is wired
-end-to-end. Remaining roadmap: VAD, wake word, Playwright browser, Google OAuth /
-Calendar / Gmail, overlay UI, system tray, long-term memory, proactive agent.
+end-to-end. MVP 2 is also done: Playwright browser (Chrome/Brave), Google OAuth,
+Calendar and Gmail tools. Remaining roadmap: VAD, wake word, overlay UI, system
+tray, long-term memory, proactive agent.
