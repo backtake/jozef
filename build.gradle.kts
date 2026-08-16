@@ -44,6 +44,9 @@ dependencies {
     // Browser automation (Playwright Java)
     implementation("com.microsoft.playwright:playwright:1.49.0")
 
+    // Global hotkey (Windows/macOS/Linux)
+    implementation("com.github.kwhat:jnativehook:2.2.2")
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testCompileOnly("org.projectlombok:lombok")

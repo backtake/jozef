@@ -47,7 +47,10 @@ Główne pakiety:
 - `core.agent` — `AgentRuntime` (pętla rozumowania + tool calling)
 - `core.capabilities` / `core.lifecycle` — zarządzanie capabilities i cyklem życia
 - `core.security` — `PermissionManager`, `ConfirmationService`
-- `core.session` / `core.context` — pamięć rozmowy, system prompt / persona
+- `core.session` / `core.context` — pamięć rozmowy, system prompt / persona, agregacja kontekstu
+- `core.memory` — `LongTermMemory` / `FileLongTermMemory` + tools `remember_note` / `recall_notes` / `forget_note`
+- `overlay` — `Overlay` / `SwingOverlay` / `OverlayCapability` (HUD statusu)
+- `tray` — `TrayCapability` + autostart + globalny hotkey (JNativeHook)
 - `llm` — `LLMProvider` + adaptery (ollama, openai, deepseek)
 - `speech` — `SpeechRecognizer` / `SpeechSynthesizer` / `SpeechTextCleaner` + TTS Edge (neuralne)
 - `automation` — `DesktopAutomation` + implementacja Windows
@@ -74,6 +77,9 @@ Główne pakiety:
 | 11 | Google OAuth | ✅ `GoogleAuthService` (desktop loopback flow), `GoogleTokenStore`, auto-refresh |
 | 12 | Calendar | ✅ `GoogleCalendarService` + `CalendarEvent` + tools `calendar_*` |
 | 13 | Gmail | ✅ `GmailService` + `GmailMessage` + tools `gmail_*` (send z potwierdzeniem) |
+| 14 | Overlay | ✅ `OverlayCapability` + `SwingOverlay` (idle/listening/thinking/speaking/confirm, always-on-top) |
+| 15 | System tray + autostart + hotkey | ✅ `TrayCapability`, `WindowsAutostartManager` (HKCU Run), `NativeGlobalHotkeyService` (JNativeHook) |
+| 16 | Memory + Context | ✅ `FileLongTermMemory`, `ContextAggregator`, historia rozmowy wysyłana do LLM |
 | 17 | Permissions + confirmations | ✅ `PermissionManager`, `ConfirmationService` (console + auto-deny fail-safe) |
 
 Dodatkowo zrobione:
@@ -85,10 +91,12 @@ Dodatkowo zrobione:
   `open_application`, `close_application`, `type_text`, `press_keys`, `search_web`, `take_screenshot`.
 - Narzędzia przeglądarki: `browser_navigate`, `browser_search`, `browser_click`, `browser_type`,
   `browser_read_text`, `browser_get_page_text`, `browser_get_title`, `browser_get_url`, `browser_screenshot`.
-- Testy jednostkowe (28 zielonych): EventBus, CommandBus, ToolRegistry, Session, AgentRuntime, EdgeTts,
-  GoogleTokenStore, GoogleCalendarService, GmailService.
+- Testy jednostkowe (42 zielone): EventBus, CommandBus, ToolRegistry, Session, AgentRuntime, EdgeTts,
+  GoogleTokenStore, GoogleCalendarService, GmailService, FileLongTermMemory, DefaultContextAggregator,
+  OverlayCapability, WindowsAutostartManager, NativeGlobalHotkeyService.
 - `ConsoleConfirmationService` — interaktywne potwierdzenie y/n (CONFIRM/DANGEROUS).
 - Google: leniwe OAuth + Calendar + Gmail (zakresy: calendar, gmail.send, gmail.readonly).
+- Overlay sterowany eventami; tray + autostart + globalny hotkey; pamięć długoterminowa + kontekst.
 - Cleanup: usunięty legacy `common`, stara domena Goal/Plan/Task/Schedule, SQLite, stare docs.
 - `README.md`, `VISION.md`, `CHANGELOG.md` zaktualizowane.
 
@@ -97,15 +105,12 @@ Dodatkowo zrobione:
 | Faza | Zakres | Czego brakuje |
 |------|--------|----------------|
 | 7 | STT + VAD | Interfejs `SpeechRecognizer` + fallback konsolowy ✅; **prawdziwy lokalny STT (Whisper/Vosk) brak**, **VAD brak** |
-| 16 | Memory + Context | `Session` (short-term) ✅ + `SystemPromptProvider` ✅; **pamięć długoterminowa brak**, **ContextProvider/Aggregator brak** |
 
 ### ❌ Do zrobienia (kolejne fazy)
 
 | Faza | Zakres | Uwagi |
 |------|--------|-------|
 | 9 | Wake word | `WakeWordDetector` (np. "Jozef") — brak |
-| 14 | Overlay | overlay UI (stan: idle/listening/thinking/speaking/confirm) — brak (jest tylko config) |
-| 15 | System tray + Windows startup | tray icon, menu, autostart, globalny hotkey — brak |
 | 18 | Proactive background agent | `CalendarWatcher`, `GmailWatcher`, `TimerScheduler` — brak |
 | 19 | Advanced planning / autonomous execution | plan → execute → observe → correct — brak |
 
@@ -139,7 +144,7 @@ Wymagane i ich status:
 
 1. **MVP 1 domknąć:** realny STT (lokalny, np. Vosk/Whisper) → wake word. (VAD na sam koniec.)
 2. **MVP 2:** ✅ Google OAuth (11) → Calendar (12) → Gmail (13, z potwierdzeniem wysyłki).
-3. **MVP 3:** overlay (14) → system tray + autostart (15) → pamięć + kontekst (16).
+3. **MVP 3:** ✅ overlay (14) → system tray + autostart + hotkey (15) → pamięć + kontekst (16).
 4. **Faza 18–19:** proaktywność i planowanie.
 
 Po każdej fazie: kompilacja → testy → (gdzie dotyczy) testy integracyjne → weryfikacja architektury → commit → dopiero następna faza.
@@ -171,26 +176,17 @@ Konfiguracja: `src/main/resources/application.yml` (sekcja `jozef.*`). Sekrety t
 
 ## Punkt wznowienia (następna sesja)
 
-Zrobione w tej sesji — **MVP 2 w całości**:
+Zrobione w tej sesji — **MVP 3 w całości**:
 
-- ✅ **Faza 11: Google OAuth** — `GoogleAuthService` (desktop loopback flow RFC 8252), `GoogleTokenStore` (persystencja `data/google-tokens.json`), automatyczne odświeżanie tokenu. Logowanie **leniwe** — przy pierwszym użyciu narzędzia.
-- ✅ **Faza 12: Calendar** — `GoogleCalendarService` + `CalendarEvent` + narzędzia `calendar_list_events`, `calendar_create_event`, `calendar_delete_event` (CONFIRM).
-- ✅ **Faza 13: Gmail** — `GmailService` + `GmailMessage` + narzędzia `gmail_send` (CONFIRM), `gmail_list_recent`, `gmail_read_message`.
-- ✅ `ConsoleConfirmationService` — interaktywne potwierdzenie y/n dla CONFIRM/DANGEROUS (domyślne; `auto-deny` jako fail-safe).
-- ✅ Przeglądarka: domyślnie **Chrome** zamiast Edge + opcja `executable-path` (np. **Brave**).
-- ✅ 28 testów zielonych, pełny build OK.
+- ✅ **Faza 14: Overlay** — `OverlayCapability` + `SwingOverlay` (frameless, always-on-top, przezroczysty). Stany idle/listening/thinking/speaking/confirm sterowane eventami (`ListeningStarted`, `UserCommandReceived`, `ConfirmationRequested`, `SpeechSynthesisStarted/Completed`).
+- ✅ **Faza 15: Tray + autostart + hotkey** — `TrayCapability` (ikona + menu „Zakończ"), `WindowsAutostartManager` (klucz HKCU Run przez `reg`), `NativeGlobalHotkeyService` (JNativeHook, hotkey `ctrl alt J`). Naprawione ładowanie natywnej biblioteki w fat-jarze (ekstrakcja do `data/native/` + `ExtractedLibraryLocator`).
+- ✅ **Faza 16: Memory + Context** — `FileLongTermMemory` (`data/memory.json`) + `DefaultContextAggregator` (notatki + ostatnie akcje w system prompt) + historia rozmowy wysyłana do LLM. Narzędzia: `remember_note`, `recall_notes`, `forget_note`.
+- ✅ `VoiceLoop`/`AgentRuntime` publikują zdarzenia stanu i konfirmacji (dla overlay).
+- ✅ 42 testy zielone, pełny build OK, smoke-test uruchomienia (tray + hotkey) OK.
 
-**Konfiguracja Google (pierwsze uruchomienie):**
-
-1. Utwórz w Google Cloud projekt + OAuth client typu „Desktop app" (redirect `http://localhost`).
-2. Ustaw zmienne środowiskowe: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-3. Użyj narzędzia kalendarza/Gmail — otworzy się przeglądarka, zaloguj się i zaakceptuj zakresy.
-4. Tokeny zapisują się w `data/google-tokens.json` (git-ignored).
-
-**Najbliższe kroki (do wyboru):**
+**Najbliższe kroki:**
 
 1. **MVP 1 domknąć:** lokalny STT (Vosk/Whisper) → wake word (VAD na sam koniec)
-2. **MVP 3:** overlay (14) → system tray + autostart (15) → pamięć + kontekst (16)
-3. **Faza 18–19:** proaktywność i planowanie
+2. **Faza 18–19:** proaktywność (CalendarWatcher/GmailWatcher/TimerScheduler) i planowanie
 
 Sekrety tylko przez zmienne środowiskowe: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.

@@ -1,6 +1,7 @@
 package com.jozef.bootstrap;
 
 import com.jozef.core.agent.AgentRuntime;
+import com.jozef.core.events.EventBus;
 import com.jozef.core.health.HealthMonitor;
 import com.jozef.core.lifecycle.ApplicationLifecycle;
 import com.jozef.speech.SpeechCapability;
@@ -20,15 +21,18 @@ public class JozefBootstrapRunner implements CommandLineRunner {
     private final HealthMonitor healthMonitor;
     private final AgentRuntime agent;
     private final SpeechCapability speech;
+    private final EventBus eventBus;
 
     public JozefBootstrapRunner(ApplicationLifecycle lifecycle,
                                 HealthMonitor healthMonitor,
                                 AgentRuntime agent,
-                                SpeechCapability speech) {
+                                SpeechCapability speech,
+                                EventBus eventBus) {
         this.lifecycle = lifecycle;
         this.healthMonitor = healthMonitor;
         this.agent = agent;
         this.speech = speech;
+        this.eventBus = eventBus;
     }
 
     @Override
@@ -40,7 +44,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
         healthMonitor.start();
 
         // Start the voice loop on a background thread
-        VoiceLoop voiceLoop = new VoiceLoop(agent, speech.recognizer(), speech.synthesizer());
+        VoiceLoop voiceLoop = new VoiceLoop(agent, speech.recognizer(), speech.synthesizer(), eventBus);
         Thread voiceThread = new Thread(voiceLoop, "jozef-voice-loop");
         voiceThread.setDaemon(false); // keep app alive
         voiceThread.start();

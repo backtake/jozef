@@ -21,6 +21,7 @@ public record JozefProperties(
         BrowserProperties browser,
         GoogleProperties google,
         SecurityProperties security,
+        TrayProperties tray,
         RuntimeProperties runtime
 ) {
     public JozefProperties {
@@ -30,12 +31,13 @@ public record JozefProperties(
         if (wakeword == null) wakeword = new WakeWordProperties(false, "hej jozef");
         if (automation == null) automation = new AutomationProperties("windows", 1.0, 1.0);
         if (plugins == null) plugins = new PluginsProperties(true, List.of("plugins/"), List.of());
-        if (memory == null) memory = new MemoryProperties(50, 10, null);
+        if (memory == null) memory = new MemoryProperties(50, 10, "data/memory.json", null);
         if (agent == null) agent = new AgentProperties(5, 30);
         if (persona == null) persona = new PersonaProperties("Jozef", "pl", "concise");
         if (browser == null) browser = new BrowserProperties(true, false, "chrome", null, null);
         if (google == null) google = new GoogleProperties(true, null, null, "data/google-tokens.json", "primary");
         if (security == null) security = new SecurityProperties("console");
+        if (tray == null) tray = new TrayProperties(true, false, "ctrl alt J");
         if (runtime == null) runtime = new RuntimeProperties(null, null);
     }
 }

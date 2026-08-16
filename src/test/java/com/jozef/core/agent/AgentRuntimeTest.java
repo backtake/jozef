@@ -2,10 +2,12 @@ package com.jozef.core.agent;
 
 import com.jozef.configuration.AgentProperties;
 import com.jozef.configuration.LlmProperties;
+import com.jozef.configuration.MemoryProperties;
 import com.jozef.core.action.Action;
 import com.jozef.core.action.ActionContext;
 import com.jozef.core.action.ActionResult;
 import com.jozef.core.action.ExecutionStrategy;
+import com.jozef.core.context.ContextAggregator;
 import com.jozef.core.context.SystemPromptProvider;
 import com.jozef.core.events.Event;
 import com.jozef.core.events.EventBus;
@@ -33,14 +35,20 @@ class AgentRuntimeTest {
 
     private static class FakeLlm implements LLMProvider {
         private final Queue<ChatResponse> responses = new ArrayDeque<>();
+        private ChatRequest lastRequest;
 
         void enqueue(ChatResponse response) {
             responses.add(response);
         }
 
+        ChatRequest lastRequest() {
+            return lastRequest;
+        }
+
         @Override public String name() { return "fake"; }
 
         @Override public ChatResponse chat(ChatRequest request) {
+            this.lastRequest = request;
             return responses.poll();
         }
     }
@@ -125,7 +133,46 @@ class AgentRuntimeTest {
         assertThat(result.toolExecutions().get(0).message()).contains("Confirmation required");
     }
 
+    @Test
+    void passesConversationHistoryToLlm() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        llm.enqueue(new ChatResponse("First answer", List.of()));
+        llm.enqueue(new ChatResponse("Second answer", List.of()));
+
+        AgentRuntime agent = agentWith(llm, tools, new AutoDenyConfirmationService());
+        agent.process("first question");
+        agent.process("second question");
+
+        var messages = llm.lastRequest().messages();
+        assertThat(messages).hasSize(3);
+        assertThat(messages.get(0).role()).isEqualTo("user");
+        assertThat(messages.get(0).content()).isEqualTo("first question");
+        assertThat(messages.get(1).role()).isEqualTo("assistant");
+        assertThat(messages.get(1).content()).isEqualTo("First answer");
+        assertThat(messages.get(2).role()).isEqualTo("user");
+        assertThat(messages.get(2).content()).isEqualTo("second question");
+    }
+
+    @Test
+    void appendsAggregatedContextToSystemPrompt() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        llm.enqueue(new ChatResponse("ok", List.of()));
+
+        AgentRuntime agent = agentWith(llm, tools, new AutoDenyConfirmationService(),
+                session -> "CONTEXT_MARKER");
+        agent.process("hello");
+
+        assertThat(llm.lastRequest().systemPrompt()).contains("CONTEXT_MARKER");
+    }
+
     private AgentRuntime agentWith(FakeLlm llm, ToolRegistry tools, ConfirmationService confirmation) {
+        return agentWith(llm, tools, confirmation, null);
+    }
+
+    private AgentRuntime agentWith(FakeLlm llm, ToolRegistry tools, ConfirmationService confirmation,
+                                   ContextAggregator contextAggregator) {
         return new AgentRuntime(
                 llm,
                 tools,
@@ -135,6 +182,8 @@ class AgentRuntimeTest {
                 new PermissionManager(),
                 confirmation,
                 new AgentProperties(5, 30),
-                new LlmProperties("fake", "m", null, null, 0.7, 100));
+                new LlmProperties("fake", "m", null, null, 0.7, 100),
+                contextAggregator,
+                new MemoryProperties(50, 10, null, null));
     }
 }

@@ -91,11 +91,18 @@ jozef:
 
   # ─── Memory ─────────────────────────────────────────
   memory:
-    conversation-max-turns: 50
-    working-memory-size: 10
+    conversation-max-turns: 50     # history turns sent to the LLM
+    working-memory-size: 10        # long-term notes injected into context
+    file: data/memory.json         # persistent long-term memory store
     vector-store:
       enabled: false
       provider: qdrant             # qdrant | chroma | pgvector
+
+  # ─── Tray / startup / hotkey ──────────────────────
+  tray:
+    enabled: true
+    autostart: false               # true = dodaj do autostartu Windows (HKCU Run)
+    hotkey: "ctrl alt J"           # globalny hotkey; "" = wyłączony
 
   # ─── Runtime ────────────────────────────────────────
   runtime:

@@ -9,6 +9,8 @@ import com.jozef.core.capabilities.CapabilityLoader;
 import com.jozef.core.commands.CommandBus;
 import com.jozef.core.commands.CommandBusImpl;
 import com.jozef.core.context.ConfigurableSystemPromptProvider;
+import com.jozef.core.context.ContextAggregator;
+import com.jozef.core.context.DefaultContextAggregator;
 import com.jozef.core.context.SystemPromptProvider;
 import com.jozef.core.events.AsyncEventBus;
 import com.jozef.core.events.Event;
@@ -16,6 +18,9 @@ import com.jozef.core.events.EventBus;
 import com.jozef.core.health.HealthMonitor;
 import com.jozef.core.lifecycle.ApplicationLifecycle;
 import com.jozef.core.logging.EventLogger;
+import com.jozef.core.memory.FileLongTermMemory;
+import com.jozef.core.memory.LongTermMemory;
+import com.jozef.core.memory.MemoryCapability;
 import com.jozef.core.plugins.Plugin;
 import com.jozef.core.plugins.PluginLoader;
 import com.jozef.core.security.AutoDenyConfirmationService;
@@ -26,7 +31,9 @@ import com.jozef.core.session.SessionManager;
 import com.jozef.core.tool.ToolRegistry;
 import com.jozef.google.GoogleCapability;
 import com.jozef.llm.LLMCapability;
+import com.jozef.overlay.OverlayCapability;
 import com.jozef.speech.SpeechCapability;
+import com.jozef.tray.TrayCapability;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -139,6 +146,16 @@ public class CoreConfiguration {
         return new ConfigurableSystemPromptProvider(props.persona());
     }
 
+    @Bean
+    public LongTermMemory longTermMemory(JozefProperties props) {
+        return new FileLongTermMemory(props.memory().file());
+    }
+
+    @Bean
+    public ContextAggregator contextAggregator(LongTermMemory longTermMemory, JozefProperties props) {
+        return new DefaultContextAggregator(longTermMemory, props.memory().workingMemorySize());
+    }
+
     // ─── Agent Runtime ──────────────────────────────
 
     @Bean
@@ -149,6 +166,7 @@ public class CoreConfiguration {
                                      SessionManager sessionManager,
                                      PermissionManager permissionManager,
                                      ConfirmationService confirmationService,
+                                     ContextAggregator contextAggregator,
                                      JozefProperties props) {
         return new AgentRuntime(
                 llm.provider(),
@@ -159,7 +177,9 @@ public class CoreConfiguration {
                 permissionManager,
                 confirmationService,
                 props.agent(),
-                props.llm());
+                props.llm(),
+                contextAggregator,
+                props.memory());
     }
 
     // ─── Capability Loader ──────────────────────────
@@ -211,5 +231,20 @@ public class CoreConfiguration {
     @Bean
     public GoogleCapability googleCapability(JozefProperties props, ToolRegistry toolRegistry) {
         return new GoogleCapability(props.google(), toolRegistry);
+    }
+
+    @Bean
+    public MemoryCapability memoryCapability(LongTermMemory longTermMemory, ToolRegistry toolRegistry) {
+        return new MemoryCapability(longTermMemory, toolRegistry);
+    }
+
+    @Bean
+    public OverlayCapability overlayCapability(JozefProperties props, EventBus eventBus) {
+        return new OverlayCapability(props.overlay(), eventBus);
+    }
+
+    @Bean
+    public TrayCapability trayCapability(JozefProperties props, EventBus eventBus) {
+        return new TrayCapability(props.tray(), eventBus);
     }
 }

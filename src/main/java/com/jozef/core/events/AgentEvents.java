@@ -11,6 +11,10 @@ public final class AgentEvents {
 
     // ─── Input / voice ────────────────────────────────
 
+    public record ListeningStarted() implements Event {
+        @Override public String description() { return "ListeningStarted"; }
+    }
+
     public record SpeechRecognized(String text) implements Event {
         @Override public String description() { return "SpeechRecognized(\"" + text + "\")"; }
     }
@@ -51,6 +55,16 @@ public final class AgentEvents {
 
     public record ActionFailed(String tool, String error) implements Event {
         @Override public String description() { return "ActionFailed(" + tool + ": " + error + ")"; }
+    }
+
+    // ─── Confirmation ────────────────────────────────
+
+    public record ConfirmationRequested(String tool, Map<String, Object> arguments, String strategy) implements Event {
+        @Override public String description() { return "ConfirmationRequested(" + tool + ", " + strategy + ")"; }
+    }
+
+    public record ConfirmationResolved(String tool, boolean approved) implements Event {
+        @Override public String description() { return "ConfirmationResolved(" + tool + "=" + approved + ")"; }
     }
 
     // ─── Speech output ────────────────────────────────

@@ -34,4 +34,8 @@ public final class CoreEvents {
     public record HealthCheckFailed(String component, String reason) implements Event {
         @Override public String description() { return "HealthCheckFailed(" + component + ")"; }
     }
+
+    public record HotkeyPressed() implements Event {
+        @Override public String description() { return "HotkeyPressed"; }
+    }
 }

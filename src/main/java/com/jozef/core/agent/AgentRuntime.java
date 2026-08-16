@@ -2,8 +2,10 @@ package com.jozef.core.agent;
 
 import com.jozef.configuration.AgentProperties;
 import com.jozef.configuration.LlmProperties;
+import com.jozef.configuration.MemoryProperties;
 import com.jozef.core.action.Action;
 import com.jozef.core.action.ActionResult;
+import com.jozef.core.context.ContextAggregator;
 import com.jozef.core.context.SystemPromptProvider;
 import com.jozef.core.events.AgentEvents;
 import com.jozef.core.events.EventBus;
@@ -48,6 +50,8 @@ public class AgentRuntime {
     private final ConfirmationService confirmationService;
     private final AgentProperties agentProperties;
     private final LlmProperties llmProperties;
+    private final ContextAggregator contextAggregator;
+    private final MemoryProperties memoryProperties;
 
     public AgentRuntime(LLMProvider llm,
                         ToolRegistry toolRegistry,
@@ -57,7 +61,9 @@ public class AgentRuntime {
                         PermissionManager permissionManager,
                         ConfirmationService confirmationService,
                         AgentProperties agentProperties,
-                        LlmProperties llmProperties) {
+                        LlmProperties llmProperties,
+                        ContextAggregator contextAggregator,
+                        MemoryProperties memoryProperties) {
         this.llm = llm;
         this.toolRegistry = toolRegistry;
         this.systemPromptProvider = systemPromptProvider;
@@ -67,6 +73,8 @@ public class AgentRuntime {
         this.confirmationService = confirmationService;
         this.agentProperties = agentProperties;
         this.llmProperties = llmProperties;
+        this.contextAggregator = contextAggregator;
+        this.memoryProperties = memoryProperties;
     }
 
     /**
@@ -81,10 +89,11 @@ public class AgentRuntime {
         sessions.current().addTurn("user", userMessage);
 
         List<ChatMessage> messages = new ArrayList<>();
+        appendHistory(messages);
         messages.add(ChatMessage.user(userMessage));
 
         List<ToolExecution> executions = new ArrayList<>();
-        String systemPrompt = systemPromptProvider.systemPrompt();
+        String systemPrompt = buildSystemPrompt();
         List<ToolSchema> toolSchemas = toolRegistry.definitions().stream()
                 .map(this::toToolSchema)
                 .toList();
@@ -159,7 +168,10 @@ public class AgentRuntime {
         }
 
         if (confirmationService.requiresConfirmation(action.strategy())) {
-            if (!confirmationService.confirm(toolName, arguments, action.strategy())) {
+            eventBus.publish(new AgentEvents.ConfirmationRequested(toolName, arguments, action.strategy().name()));
+            boolean approved = confirmationService.confirm(toolName, arguments, action.strategy());
+            eventBus.publish(new AgentEvents.ConfirmationResolved(toolName, approved));
+            if (!approved) {
                 eventBus.publish(new AgentEvents.ActionFailed(toolName, "Confirmation required"));
                 return ToolExecution.of(toolName, arguments, false,
                         "Confirmation required for tool: " + toolName, elapsed(start));
@@ -181,6 +193,34 @@ public class AgentRuntime {
 
     private ToolSchema toToolSchema(ToolDefinition definition) {
         return new ToolSchema(definition.name(), definition.description(), definition.inputSchema());
+    }
+
+    private String buildSystemPrompt() {
+        String base = systemPromptProvider.systemPrompt();
+        String context = contextAggregator != null
+                ? contextAggregator.aggregate(sessions.current())
+                : "";
+        return context.isBlank() ? base : base + "\n\n" + context;
+    }
+
+    /** Prepend recent conversation history (excluding the just-added current turn). */
+    private void appendHistory(List<ChatMessage> messages) {
+        var conversation = sessions.current().conversation();
+        int maxHistory = memoryProperties != null && memoryProperties.conversationMaxTurns() > 0
+                ? memoryProperties.conversationMaxTurns()
+                : 10;
+        if (conversation.size() <= 1) {
+            return;
+        }
+        int start = Math.max(0, conversation.size() - 1 - maxHistory);
+        for (int i = start; i < conversation.size() - 1; i++) {
+            var turn = conversation.get(i);
+            if ("user".equals(turn.role())) {
+                messages.add(ChatMessage.user(turn.content()));
+            } else if ("assistant".equals(turn.role())) {
+                messages.add(ChatMessage.assistant(turn.content()));
+            }
+        }
     }
 
     private long elapsed(long start) {

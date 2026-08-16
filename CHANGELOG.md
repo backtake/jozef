@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.0] - 2025-08-16
+
+### Added
+- Overlay HUD (`SwingOverlay` + `OverlayCapability`) with idle/listening/thinking/speaking/confirm states driven by events
+- System tray icon + menu (`TrayCapability`)
+- Windows autostart via HKCU Run key (`WindowsAutostartManager`)
+- Global hotkey via JNativeHook (`NativeGlobalHotkeyService`) with fat-jar native library extraction
+- Long-term memory (`FileLongTermMemory`, `data/memory.json`) + `remember_note` / `recall_notes` / `forget_note` tools
+- Context aggregation (`DefaultContextAggregator`) — notes + recent actions injected into the system prompt
+- Conversation history now sent to the LLM (multi-turn context)
+- State events (listening/speaking) + confirmation events published by the voice loop and agent
+
+### Changed
+- `AgentRuntime` accepts a `ContextAggregator` and `MemoryProperties`
+- `MemoryProperties` gained a `file` field; new `TrayProperties` (`jozef.tray.*`)
+- New dependency: JNativeHook (`com.github.kwhat:jnativehook:2.2.2`)
+
 ## [0.2.0] - 2025-08-16
 
 ### Added

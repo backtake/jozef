@@ -2,6 +2,8 @@ package com.jozef.bootstrap;
 
 import com.jozef.core.agent.AgentResult;
 import com.jozef.core.agent.AgentRuntime;
+import com.jozef.core.events.AgentEvents;
+import com.jozef.core.events.EventBus;
 import com.jozef.speech.SpeechRecognizer;
 import com.jozef.speech.SpeechSynthesizer;
 import com.jozef.speech.SpeechTextCleaner;
@@ -26,12 +28,14 @@ public class VoiceLoop implements Runnable {
     private final AgentRuntime agent;
     private final SpeechRecognizer recognizer;
     private final SpeechSynthesizer synthesizer;
+    private final EventBus eventBus;
     private final AtomicBoolean running = new AtomicBoolean(true);
 
-    public VoiceLoop(AgentRuntime agent, SpeechRecognizer recognizer, SpeechSynthesizer synthesizer) {
+    public VoiceLoop(AgentRuntime agent, SpeechRecognizer recognizer, SpeechSynthesizer synthesizer, EventBus eventBus) {
         this.agent = agent;
         this.recognizer = recognizer;
         this.synthesizer = synthesizer;
+        this.eventBus = eventBus;
     }
 
     public void stop() {
@@ -45,6 +49,7 @@ public class VoiceLoop implements Runnable {
 
         while (running.get()) {
             try {
+                eventBus.publish(new AgentEvents.ListeningStarted());
                 String input = recognizer.listen();
                 if (input == null || input.isBlank()) {
                     continue;
@@ -59,7 +64,9 @@ public class VoiceLoop implements Runnable {
                 String text = (result.text() == null || result.text().isBlank())
                         ? "Done."
                         : SpeechTextCleaner.clean(result.text());
+                eventBus.publish(new AgentEvents.SpeechSynthesisStarted(text));
                 synthesizer.speak(text);
+                eventBus.publish(new AgentEvents.SpeechSynthesisCompleted(text));
 
             } catch (Exception e) {
                 log.error("Voice loop iteration failed", e);

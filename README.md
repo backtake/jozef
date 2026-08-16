@@ -41,10 +41,13 @@ Key packages:
 - `core.agent` — `AgentRuntime` (the reasoning/tool-calling loop)
 - `core.capabilities` / `core.lifecycle` — capability & lifecycle management
 - `core.security` — `PermissionManager`, `ConfirmationService`
-- `core.session` / `core.context` — conversation memory and system prompt/persona
+- `core.session` / `core.context` — conversation memory, system prompt/persona, context aggregation
+- `core.memory` — `LongTermMemory` / `FileLongTermMemory` + `remember_note` / `recall_notes` / `forget_note`
 - `llm` — provider abstraction (`LLMProvider`) + Ollama/OpenAI/DeepSeek adapters
 - `speech` — replaceable `SpeechRecognizer` / `SpeechSynthesizer`
 - `automation` — `DesktopAutomation` abstraction + Windows implementation
+- `overlay` — `Overlay` / `SwingOverlay` (status HUD)
+- `tray` — `TrayCapability` + autostart + global hotkey (JNativeHook)
 - `google` — `GoogleAuthService` (OAuth) + `GoogleCalendarService` / `GmailService`
 - `configuration` — Spring `@ConfigurationProperties` (`jozef.*`)
 - `bootstrap` — entry point + voice loop
@@ -81,6 +84,6 @@ environment variables (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`,
 ## Status
 
 First vertical slice (voice → LLM → tools → Windows automation → voice) is wired
-end-to-end. MVP 2 is also done: Playwright browser (Chrome/Brave), Google OAuth,
-Calendar and Gmail tools. Remaining roadmap: VAD, wake word, overlay UI, system
-tray, long-term memory, proactive agent.
+end-to-end. MVP 2 (Playwright browser, Google OAuth/Calendar/Gmail) and MVP 3
+(overlay HUD, system tray + autostart + global hotkey, long-term memory +
+context) are also done. Remaining roadmap: VAD, wake word, proactive agent.
