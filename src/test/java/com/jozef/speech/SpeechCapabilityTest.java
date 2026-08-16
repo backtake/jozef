@@ -16,7 +16,7 @@ class SpeechCapabilityTest {
     @Test
     void fallsBackToConsoleWhenVoskModelMissing() {
         SpeechProperties props = new SpeechProperties(
-                new SpeechProperties.SttProperties("vosk", "/nonexistent/model"), null, null);
+                new SpeechProperties.SttProperties("vosk", "/nonexistent/model", false), null, null);
 
         SpeechCapability capability = new SpeechCapability(props, new WakeWordProperties(true, "hej jozef"));
 
@@ -27,7 +27,7 @@ class SpeechCapabilityTest {
     @Test
     void disablesWakeWordWhenSttIsConsole() {
         SpeechProperties props = new SpeechProperties(
-                new SpeechProperties.SttProperties("console", null), null, null);
+                new SpeechProperties.SttProperties("console", null, false), null, null);
 
         SpeechCapability capability = new SpeechCapability(props, new WakeWordProperties(true, "hej jozef"));
 
@@ -37,10 +37,10 @@ class SpeechCapabilityTest {
 
     @Test
     void usesVoskAndWakeWordWhenModelAvailable(@TempDir Path modelDir) throws IOException {
-        Files.writeString(modelDir.resolve("README"), "model"); // make the dir non-empty
+        Files.createDirectories(modelDir.resolve("am")); // a valid Vosk model has an "am" dir
 
         SpeechProperties props = new SpeechProperties(
-                new SpeechProperties.SttProperties("vosk", modelDir.toString()), null, null);
+                new SpeechProperties.SttProperties("vosk", modelDir.toString(), false), null, null);
 
         SpeechCapability capability = new SpeechCapability(props, new WakeWordProperties(true, "hej jozef"));
 

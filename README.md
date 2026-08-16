@@ -67,8 +67,9 @@ cmd //c "gradlew.bat bootRun"
 ```
 
 Jozef starts as a background process (no web server), initializes capabilities,
-and enters the voice loop. STT defaults to Vosk (offline, local model); if the
-model is missing it falls back to console input. The wake word is "hej Jozef".
+and enters the voice loop. STT defaults to Vosk (offline, local model); on first
+start the model is downloaded and installed automatically (`data/`), with a
+console fallback if the download fails. The wake word is "hej Jozef".
 The default TTS is Edge (neural Polish voices).
 
 ## Configuration

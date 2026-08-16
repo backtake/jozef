@@ -37,6 +37,7 @@ jozef:
     stt:
       provider: vosk              # vosk | console
       model: data/vosk-model-small-pl-0.22   # ścieżka do rozpakowanego modelu Vosk
+      auto-download: true         # pobierz i zainstaluj model automatycznie przy starcie
     tts:
       provider: edge              # edge | windows | console | elevenlabs | azure
       voice: pl-PL-ZofiaNeural    # pl-PL-ZofiaNeural | pl-PL-MarekNeural (darmowe neuralne)

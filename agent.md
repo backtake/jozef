@@ -183,14 +183,17 @@ Zrobione w tej sesji — **MVP 1 domknięte** (STT + wake word):
 - ✅ **Faza 7 (STT):** `VoskSpeechRecognizer` — lokalny, offline STT (model Vosk, 16 kHz mono) + `MicrophoneAudioSource` (TargetDataLine). Fallback do konsoli, gdy modelu brak.
 - ✅ **Faza 9 (wake word):** `WakeWordDetector` + `VoskWakeWordDetector` — ciągłe nasłuchiwanie, detekcja „hej Jozef" i wyciągnięcie komendy po słowie budzącym. `VoiceLoop` używa detektora (jeśli aktywny).
 - ✅ Natywne biblioteki Vosk ekstrahowane z fat-jara do `data/native/vosk` + `jna.library.path` (analogicznie do JNativeHook).
+- ✅ **Auto-instalacja modelu:** `VoskModelManager` — przy starcie sprawdza, czy model jest zainstalowany; jeśli nie, pobiera (~50 MB) i rozpakowuje automatycznie (flag `speech.stt.auto-download`, domyślnie true). Zweryfikowane end-to-end.
 - ✅ Konfiguracja: `speech.stt.provider: vosk`, `speech.stt.model`, `wakeword.enabled: true`.
-- ✅ 51 testów zielonych, pełny build OK, smoke-test (fallback konsola + tray + hotkey) OK.
+- ✅ 54 testy zielone, pełny build OK, smoke-test (fallback konsola + tray + hotkey) OK.
 
-**Żeby włączyć głos (pierwsze uruchomienie):**
+**Uruchomienie dla nietechnicznego użytkownika:**
 
-1. Pobierz model: <https://alphacephei.com/vosk/models> → np. `vosk-model-small-pl-0.22` (~40 MB).
-2. Rozpakuj do `data/vosk-model-small-pl-0.22` (katalog `data/` jest git-ignored).
-3. Uruchom — log powinien pokazać `stt=vosk, wake-word=vosk-wake-word`.
+1. Uruchom aplikację (`java -jar jozef-*.jar`).
+2. Przy pierwszym starcie model Vosk pobierze się i zainstaluje sam (`data/vosk-model-small-pl-0.22`).
+3. Gotowe — log pokaże `stt=vosk, wake-word=vosk-wake-word`, a Jozef słucha przez mikrofon („hej Jozef").
+
+Można wyłączyć auto-pobieranie: `jozef.speech.stt.auto-download: false` (wtedy model trzeba włożyć ręcznie do `data/`).
 
 **Najbliższe kroki:**
 

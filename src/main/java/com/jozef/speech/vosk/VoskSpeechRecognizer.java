@@ -6,7 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.vosk.Model;
 import org.vosk.Recognizer;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -30,20 +29,14 @@ public class VoskSpeechRecognizer implements SpeechRecognizer {
         this.modelPath = modelPath;
     }
 
-    /** True when a non-empty Vosk model directory exists at the given path. */
+    /** True when a valid Vosk model directory exists at the given path. */
     public static boolean isModelAvailable(String modelPath) {
         if (modelPath == null || modelPath.isBlank()) {
             return false;
         }
         Path dir = Path.of(modelPath);
-        if (!Files.isDirectory(dir)) {
-            return false;
-        }
-        try (var stream = Files.list(dir)) {
-            return stream.findAny().isPresent();
-        } catch (IOException e) {
-            return false;
-        }
+        // A proper Vosk model contains an acoustic-model directory "am".
+        return Files.isDirectory(dir) && Files.isDirectory(dir.resolve("am"));
     }
 
     @Override

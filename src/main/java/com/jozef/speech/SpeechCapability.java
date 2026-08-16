@@ -7,6 +7,7 @@ import com.jozef.speech.console.ConsoleInputRecognizer;
 import com.jozef.speech.console.ConsoleSpeechSynthesizer;
 import com.jozef.speech.tts.EdgeTtsSynthesizer;
 import com.jozef.speech.tts.WindowsSpeechSynthesizer;
+import com.jozef.speech.vosk.VoskModelManager;
 import com.jozef.speech.vosk.VoskSpeechRecognizer;
 import com.jozef.speech.vosk.VoskWakeWordDetector;
 import lombok.extern.slf4j.Slf4j;
@@ -46,9 +47,18 @@ public class SpeechCapability implements Capability {
                 log.info("Using Vosk STT with model {}", modelPath);
                 return new VoskSpeechRecognizer(modelPath);
             }
-            log.warn("Vosk model not found at '{}' — falling back to console input.", modelPath);
-            log.warn("Pobierz model z https://alphacephei.com/vosk/models "
-                    + "(np. vosk-model-small-pl-0.22) i rozpakuj do katalogu data/.");
+            if (props.stt().autoDownload()) {
+                log.info("Model Vosk nie znaleziony — próbuję pobrać i zainstalować automatycznie.");
+                if (VoskModelManager.install(modelPath)) {
+                    return new VoskSpeechRecognizer(modelPath);
+                }
+                log.warn("Automatyczna instalacja modelu Vosk nie powiodła się — fallback do konsoli.");
+            } else {
+                log.warn("Vosk model not found at '{}' — falling back to console input.", modelPath);
+                log.warn("Pobierz model z https://alphacephei.com/vosk/models "
+                        + "(np. vosk-model-small-pl-0.22) i rozpakuj do katalogu data/, "
+                        + "albo ustaw jozef.speech.stt.auto-download=true.");
+            }
         }
         return new ConsoleInputRecognizer();
     }
@@ -68,7 +78,14 @@ public class SpeechCapability implements Capability {
     }
 
     private String resolveModelPath(String configured) {
-        return (configured == null || configured.isBlank()) ? DEFAULT_VOSK_MODEL : configured;
+        if (configured == null || configured.isBlank()) {
+            return DEFAULT_VOSK_MODEL;
+        }
+        // Bare model name (no directory) → keep it under data/.
+        if (!configured.contains("/") && !configured.contains("\\")) {
+            return "data/" + configured;
+        }
+        return configured;
     }
 
     private SpeechSynthesizer createSynthesizer(SpeechProperties props) {
