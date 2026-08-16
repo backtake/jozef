@@ -46,7 +46,7 @@ Key packages:
 - `core.memory` — `LongTermMemory` / `FileLongTermMemory` + `remember_note` / `recall_notes` / `forget_note`
 - `llm` — provider abstraction (`LLMProvider`) + Ollama/OpenAI/DeepSeek adapters
 - `speech` — replaceable `SpeechRecognizer` / `SpeechSynthesizer` / `WakeWordDetector`
-  (console + Vosk offline STT; Edge TTS)
+  (console + Vosk offline STT, VAD, Edge TTS)
 - `automation` — `DesktopAutomation` abstraction + Windows implementation
 - `overlay` — `Overlay` / `SwingOverlay` (status HUD)
 - `tray` — `TrayCapability` + autostart + global hotkey (JNativeHook)
@@ -88,7 +88,7 @@ environment variables (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`,
 ## Status
 
 First vertical slice (voice → LLM → tools → Windows automation → voice) is wired
-end-to-end, including offline Vosk STT and the "hej Jozef" wake word. MVP 2
-(Playwright browser, Google OAuth/Calendar/Gmail) and MVP 3 (overlay HUD, system
-tray + autostart + global hotkey, long-term memory + context) are also done.
-Remaining roadmap: VAD, proactive agent.
+end-to-end, including offline Vosk STT, VAD, and the "hej Jozef" wake word.
+MVP 2 (Playwright browser, Google OAuth/Calendar/Gmail) and MVP 3 (overlay HUD,
+system tray + autostart + global hotkey, long-term memory + context) are also
+done. Remaining roadmap: proactive agent.

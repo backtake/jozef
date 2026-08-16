@@ -7,11 +7,13 @@
 - Wake-word detection (`WakeWordDetector` + `VoskWakeWordDetector`) — "hej Jozef"
 - Vosk native-library extraction for fat jars (`VoskNativeLibrary` + `jna.library.path`)
 - Automatic Vosk model download + install at startup (`VoskModelManager`)
+- Voice activity detection (`EnergyVoiceActivityDetector`) — end-of-utterance detection so commands aren't cut off
 - Graceful fallback to console input when the Vosk model is missing
 
 ### Changed
 - `SpeechCapability` now selects STT (`vosk` | `console`) and an optional wake-word detector
 - `VoiceLoop` waits for the wake word before listening for a command (when enabled)
+- `VoskSpeechRecognizer` waits for speech + silence (VAD) before returning the command
 - `SpeechProperties.SttProperties` gained `auto-download` (default true) — the model is fetched and extracted automatically when missing
 - New dependency: `com.alphacephei:vosk:0.3.45`
 

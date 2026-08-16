@@ -45,12 +45,12 @@ public class SpeechCapability implements Capability {
             String modelPath = resolveModelPath(props.stt().model());
             if (VoskSpeechRecognizer.isModelAvailable(modelPath)) {
                 log.info("Using Vosk STT with model {}", modelPath);
-                return new VoskSpeechRecognizer(modelPath);
+                return new VoskSpeechRecognizer(modelPath, props.vad());
             }
             if (props.stt().autoDownload()) {
                 log.info("Model Vosk nie znaleziony — próbuję pobrać i zainstalować automatycznie.");
                 if (VoskModelManager.install(modelPath)) {
-                    return new VoskSpeechRecognizer(modelPath);
+                    return new VoskSpeechRecognizer(modelPath, props.vad());
                 }
                 log.warn("Automatyczna instalacja modelu Vosk nie powiodła się — fallback do konsoli.");
             } else {

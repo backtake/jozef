@@ -73,6 +73,7 @@ Główne pakiety:
 | 4 | LLM abstraction + provider | ✅ `LLMProvider`, Ollama (pełny tool calling), OpenAI, DeepSeek |
 | 5 | Agent execution loop | ✅ `AgentRuntime` z wieloetapową pętlą tool calling + eventy + sesja |
 | 6 | Windows automation | ✅ `DesktopAutomation` + `WindowsAutomationService` (AWT Robot) |
+| 7 | STT + VAD | ✅ `VoskSpeechRecognizer` (offline), `EnergyVoiceActivityDetector` (VAD), fallback konsola |
 | 8 | TTS | ✅ Edge TTS (darmowe neuralne głosy PL) + Windows System.Speech + konsola |
 | 9 | Wake word | ✅ `WakeWordDetector` + `VoskWakeWordDetector` („hej Jozef", sterowane konfiguracją) |
 | 10 | Browser / Playwright | ✅ `BrowserService` + Playwright (channel chrome/msedge, `executable-path` np. Brave, profil trwały) |
@@ -93,10 +94,10 @@ Dodatkowo zrobione:
   `open_application`, `close_application`, `type_text`, `press_keys`, `search_web`, `take_screenshot`.
 - Narzędzia przeglądarki: `browser_navigate`, `browser_search`, `browser_click`, `browser_type`,
   `browser_read_text`, `browser_get_page_text`, `browser_get_title`, `browser_get_url`, `browser_screenshot`.
-- Testy jednostkowe (51 zielonych): EventBus, CommandBus, ToolRegistry, Session, AgentRuntime, EdgeTts,
+- Testy jednostkowe (59 zielonych): EventBus, CommandBus, ToolRegistry, Session, AgentRuntime, EdgeTts,
   GoogleTokenStore, GoogleCalendarService, GmailService, FileLongTermMemory, DefaultContextAggregator,
-  OverlayCapability, WindowsAutostartManager, NativeGlobalHotkeyService, Vosk (STT/wake-word).
-- Vosk (lokalny offline STT) + wake word; natywne biblioteki Vosk/JNativeHook ekstrahowane z fat-jara do `data/native/`.
+  OverlayCapability, WindowsAutostartManager, NativeGlobalHotkeyService, Vosk (STT/wake-word), VAD.
+- Vosk (lokalny offline STT) + wake word + VAD; natywne biblioteki Vosk/JNativeHook ekstrahowane z fat-jara do `data/native/`.
 - `ConsoleConfirmationService` — interaktywne potwierdzenie y/n (CONFIRM/DANGEROUS).
 - Google: leniwe OAuth + Calendar + Gmail (zakresy: calendar, gmail.send, gmail.readonly).
 - Overlay sterowany eventami; tray + autostart + globalny hotkey; pamięć długoterminowa + kontekst.
@@ -105,9 +106,7 @@ Dodatkowo zrobione:
 
 ### ⚠️ Częściowo zrobione
 
-| Faza | Zakres | Czego brakuje |
-|------|--------|----------------|
-| 7 | STT + VAD | `SpeechRecognizer` + Vosk (lokalny STT) ✅ + fallback konsolowy ✅; **VAD brak** |
+Brak — wszystkie fazy 1–17 są domknięte.
 
 ### ❌ Do zrobienia (kolejne fazy)
 
@@ -178,14 +177,14 @@ Konfiguracja: `src/main/resources/application.yml` (sekcja `jozef.*`). Sekrety t
 
 ## Punkt wznowienia (następna sesja)
 
-Zrobione w tej sesji — **MVP 1 domknięte** (STT + wake word):
+Zrobione w tej sesji — **MVP 1 domknięte w całości** (STT + wake word + VAD):
 
-- ✅ **Faza 7 (STT):** `VoskSpeechRecognizer` — lokalny, offline STT (model Vosk, 16 kHz mono) + `MicrophoneAudioSource` (TargetDataLine). Fallback do konsoli, gdy modelu brak.
+- ✅ **Faza 7 (STT + VAD):** `VoskSpeechRecognizer` — lokalny, offline STT (model Vosk, 16 kHz mono) + `MicrophoneAudioSource` (TargetDataLine). `EnergyVoiceActivityDetector` (VAD) — kończy nasłuch po ciszy, nie ucina komend. Fallback do konsoli, gdy modelu brak.
 - ✅ **Faza 9 (wake word):** `WakeWordDetector` + `VoskWakeWordDetector` — ciągłe nasłuchiwanie, detekcja „hej Jozef" i wyciągnięcie komendy po słowie budzącym. `VoiceLoop` używa detektora (jeśli aktywny).
 - ✅ Natywne biblioteki Vosk ekstrahowane z fat-jara do `data/native/vosk` + `jna.library.path` (analogicznie do JNativeHook).
 - ✅ **Auto-instalacja modelu:** `VoskModelManager` — przy starcie sprawdza, czy model jest zainstalowany; jeśli nie, pobiera (~50 MB) i rozpakowuje automatycznie (flag `speech.stt.auto-download`, domyślnie true). Zweryfikowane end-to-end.
-- ✅ Konfiguracja: `speech.stt.provider: vosk`, `speech.stt.model`, `wakeword.enabled: true`.
-- ✅ 54 testy zielone, pełny build OK, smoke-test (fallback konsola + tray + hotkey) OK.
+- ✅ Konfiguracja: `speech.stt.provider: vosk`, `speech.stt.model`, `wakeword.enabled: true`, `speech.vad.enabled: true`.
+- ✅ 59 testów zielonych, pełny build OK, smoke-test (vosk + VAD + tray + hotkey) OK.
 
 **Uruchomienie dla nietechnicznego użytkownika:**
 
@@ -197,7 +196,6 @@ Można wyłączyć auto-pobieranie: `jozef.speech.stt.auto-download: false` (wte
 
 **Najbliższe kroki:**
 
-1. **VAD** (faza 7, ostatnia część) — segmentacja mowy/ciszy, by nie ciąć komend.
-2. **Faza 18–19:** proaktywność (CalendarWatcher/GmailWatcher/TimerScheduler) i planowanie.
+1. **Faza 18–19:** proaktywność (CalendarWatcher/GmailWatcher/TimerScheduler) i planowanie.
 
 Sekrety tylko przez zmienne środowiskowe: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
