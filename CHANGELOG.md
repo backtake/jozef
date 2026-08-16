@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0] - 2025-08-16
+
+### Added
+- Proactive background agent: `TimerScheduler`/`InMemoryTimerScheduler`, `CalendarWatcher`, `GmailWatcher`, `ProactiveAgentService`
+- Timer tools: `set_timer`, `list_timers`, `cancel_timer`
+- Autonomous planning: `Planner` (LLM → JSON steps), `PlanExecutor`, `AutonomousPlanner` (plan → execute → observe → correct)
+- Planning tools: `plan_task`, `list_plans`, `execute_plan`, `autonomous_task`
+
+### Changed
+- `AgentRuntime.process` is now synchronized (voice and proactive triggers serialize)
+- New config: `jozef.proactive.*` and `jozef.planning.*`
+
 ## [0.4.0] - 2025-08-16
 
 ### Added

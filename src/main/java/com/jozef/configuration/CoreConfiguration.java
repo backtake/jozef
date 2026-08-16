@@ -32,6 +32,9 @@ import com.jozef.core.tool.ToolRegistry;
 import com.jozef.google.GoogleCapability;
 import com.jozef.llm.LLMCapability;
 import com.jozef.overlay.OverlayCapability;
+import com.jozef.planning.PlanningCapability;
+import com.jozef.proactive.ProactiveAgentService;
+import com.jozef.proactive.ProactiveCapability;
 import com.jozef.speech.SpeechCapability;
 import com.jozef.tray.TrayCapability;
 import lombok.extern.slf4j.Slf4j;
@@ -246,5 +249,30 @@ public class CoreConfiguration {
     @Bean
     public TrayCapability trayCapability(JozefProperties props, EventBus eventBus) {
         return new TrayCapability(props.tray(), eventBus);
+    }
+
+    @Bean
+    public ProactiveAgentService proactiveAgentService(AgentRuntime agentRuntime,
+                                                       SpeechCapability speechCapability,
+                                                       EventBus eventBus) {
+        return new ProactiveAgentService(agentRuntime, speechCapability, eventBus);
+    }
+
+    @Bean
+    public ProactiveCapability proactiveCapability(JozefProperties props,
+                                                   ToolRegistry toolRegistry,
+                                                   ProactiveAgentService proactiveAgentService,
+                                                   GoogleCapability googleCapability) {
+        return new ProactiveCapability(props.proactive(), toolRegistry, proactiveAgentService, googleCapability);
+    }
+
+    @Bean
+    public PlanningCapability planningCapability(JozefProperties props,
+                                                 LLMCapability llmCapability,
+                                                 ToolRegistry toolRegistry,
+                                                 PermissionManager permissionManager,
+                                                 ConfirmationService confirmationService) {
+        return new PlanningCapability(props.planning(), llmCapability.provider(), toolRegistry,
+                permissionManager, confirmationService);
     }
 }

@@ -51,6 +51,8 @@ Key packages:
 - `overlay` — `Overlay` / `SwingOverlay` (status HUD)
 - `tray` — `TrayCapability` + autostart + global hotkey (JNativeHook)
 - `google` — `GoogleAuthService` (OAuth) + `GoogleCalendarService` / `GmailService`
+- `proactive` — `TimerScheduler` + `CalendarWatcher` / `GmailWatcher` (background agent)
+- `planning` — `Planner` / `PlanExecutor` / `AutonomousPlanner` (plan → execute → correct)
 - `configuration` — Spring `@ConfigurationProperties` (`jozef.*`)
 - `bootstrap` — entry point + voice loop
 
@@ -87,8 +89,8 @@ environment variables (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`,
 
 ## Status
 
-First vertical slice (voice → LLM → tools → Windows automation → voice) is wired
-end-to-end, including offline Vosk STT, VAD, and the "hej Jozef" wake word.
-MVP 2 (Playwright browser, Google OAuth/Calendar/Gmail) and MVP 3 (overlay HUD,
-system tray + autostart + global hotkey, long-term memory + context) are also
-done. Remaining roadmap: proactive agent.
+All roadmap phases (1–19) are implemented: the voice pipeline (Vosk STT, VAD,
+"hej Jozef" wake word), MVP 2 (Playwright browser, Google OAuth/Calendar/Gmail),
+MVP 3 (overlay HUD, system tray + autostart + global hotkey, long-term memory +
+context), and the proactive agent + autonomous planning. Remaining (optional):
+Anthropic/Gemini LLM adapters.

@@ -22,6 +22,8 @@ public record JozefProperties(
         GoogleProperties google,
         SecurityProperties security,
         TrayProperties tray,
+        ProactiveProperties proactive,
+        PlanningProperties planning,
         RuntimeProperties runtime
 ) {
     public JozefProperties {
@@ -38,6 +40,8 @@ public record JozefProperties(
         if (google == null) google = new GoogleProperties(true, null, null, "data/google-tokens.json", "primary");
         if (security == null) security = new SecurityProperties("console");
         if (tray == null) tray = new TrayProperties(true, false, "ctrl alt J");
+        if (proactive == null) proactive = new ProactiveProperties(true, 5, 5, 15);
+        if (planning == null) planning = new PlanningProperties(true, 3);
         if (runtime == null) runtime = new RuntimeProperties(null, null);
     }
 }

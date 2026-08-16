@@ -79,8 +79,9 @@ public class AgentRuntime {
 
     /**
      * Process one user utterance and return the final response text.
+     * Synchronized so voice and proactive triggers never interleave a turn.
      */
-    public AgentResult process(String userMessage) {
+    public synchronized AgentResult process(String userMessage) {
         if (userMessage == null || userMessage.isBlank()) {
             return AgentResult.reply("");
         }

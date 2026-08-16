@@ -105,6 +105,18 @@ jozef:
     autostart: false               # true = dodaj do autostartu Windows (HKCU Run)
     hotkey: "ctrl alt J"           # globalny hotkey; "" = wyłączony
 
+  # ─── Proactive (timers + watchers) ────────────────
+  proactive:
+    enabled: true
+    calendar-poll-minutes: 5       # jak często sprawdzać kalendarz
+    gmail-poll-minutes: 5          # jak często sprawdzać Gmaila
+    calendar-lookahead-minutes: 15 # przypominaj o wydarzeniach za <15 min
+
+  # ─── Planning (autonomous execution) ──────────────
+  planning:
+    enabled: true
+    max-attempts: 3                # ile razy replanować po błędzie
+
   # ─── Runtime ────────────────────────────────────────
   runtime:
     event-bus:

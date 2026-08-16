@@ -56,6 +56,8 @@ Główne pakiety:
   + TTS Edge (neuralne) + STT Vosk (lokalny, offline) + mikrofon (`MicrophoneAudioSource`)
 - `automation` — `DesktopAutomation` + implementacja Windows
 - `browser` — `BrowserService` + implementacja Playwright
+- `proactive` — `TimerScheduler`, `CalendarWatcher`, `GmailWatcher` (agent działający w tle)
+- `planning` — `Planner`, `PlanExecutor`, `AutonomousPlanner` (plan → execute → correct)
 - `configuration` — `jozef.*` (`@ConfigurationProperties`)
 - `bootstrap` — entry point + pętla głosowa
 
@@ -84,6 +86,8 @@ Główne pakiety:
 | 15 | System tray + autostart + hotkey | ✅ `TrayCapability`, `WindowsAutostartManager` (HKCU Run), `NativeGlobalHotkeyService` (JNativeHook) |
 | 16 | Memory + Context | ✅ `FileLongTermMemory`, `ContextAggregator`, historia rozmowy wysyłana do LLM |
 | 17 | Permissions + confirmations | ✅ `PermissionManager`, `ConfirmationService` (console + auto-deny fail-safe) |
+| 18 | Proactive background agent | ✅ `TimerScheduler`, `CalendarWatcher`, `GmailWatcher`, `ProactiveAgentService` + tools `set_timer`/`list_timers`/`cancel_timer` |
+| 19 | Advanced planning / autonomous execution | ✅ `Planner`, `PlanExecutor`, `AutonomousPlanner` (plan → execute → observe → correct) + tools `plan_task`/`execute_plan`/`autonomous_task` |
 
 Dodatkowo zrobione:
 
@@ -94,10 +98,12 @@ Dodatkowo zrobione:
   `open_application`, `close_application`, `type_text`, `press_keys`, `search_web`, `take_screenshot`.
 - Narzędzia przeglądarki: `browser_navigate`, `browser_search`, `browser_click`, `browser_type`,
   `browser_read_text`, `browser_get_page_text`, `browser_get_title`, `browser_get_url`, `browser_screenshot`.
-- Testy jednostkowe (59 zielonych): EventBus, CommandBus, ToolRegistry, Session, AgentRuntime, EdgeTts,
+- Testy jednostkowe (72 zielone): EventBus, CommandBus, ToolRegistry, Session, AgentRuntime, EdgeTts,
   GoogleTokenStore, GoogleCalendarService, GmailService, FileLongTermMemory, DefaultContextAggregator,
-  OverlayCapability, WindowsAutostartManager, NativeGlobalHotkeyService, Vosk (STT/wake-word), VAD.
+  OverlayCapability, WindowsAutostartManager, NativeGlobalHotkeyService, Vosk (STT/wake-word), VAD,
+  TimerScheduler, Watchers, Planner, PlanExecutor.
 - Vosk (lokalny offline STT) + wake word + VAD; natywne biblioteki Vosk/JNativeHook ekstrahowane z fat-jara do `data/native/`.
+- Proaktywność (timery + watchery kalendarza/Gmaila) + planowanie (plan → execute → observe → correct).
 - `ConsoleConfirmationService` — interaktywne potwierdzenie y/n (CONFIRM/DANGEROUS).
 - Google: leniwe OAuth + Calendar + Gmail (zakresy: calendar, gmail.send, gmail.readonly).
 - Overlay sterowany eventami; tray + autostart + globalny hotkey; pamięć długoterminowa + kontekst.
@@ -106,14 +112,11 @@ Dodatkowo zrobione:
 
 ### ⚠️ Częściowo zrobione
 
-Brak — wszystkie fazy 1–17 są domknięte.
+Brak — wszystkie fazy 1–19 są domknięte.
 
 ### ❌ Do zrobienia (kolejne fazy)
 
-| Faza | Zakres | Uwagi |
-|------|--------|-------|
-| 18 | Proactive background agent | `CalendarWatcher`, `GmailWatcher`, `TimerScheduler` — brak |
-| 19 | Advanced planning / autonomous execution | plan → execute → observe → correct — brak |
+Brak — wszystkie fazy (1–19) są zaimplementowane.
 
 ### ❌ Dostawcy LLM do uzupełnienia
 
@@ -146,7 +149,7 @@ Wymagane i ich status:
 1. **MVP 1:** ✅ mikrofon + Vosk STT + wake word. (VAD na sam koniec.)
 2. **MVP 2:** ✅ Google OAuth (11) → Calendar (12) → Gmail (13, z potwierdzeniem wysyłki).
 3. **MVP 3:** ✅ overlay (14) → system tray + autostart + hotkey (15) → pamięć + kontekst (16).
-4. **Faza 18–19:** proaktywność i planowanie.
+4. **Faza 18–19:** ✅ proaktywność (timery + watchery) i planowanie (plan → execute → correct).
 
 Po każdej fazie: kompilacja → testy → (gdzie dotyczy) testy integracyjne → weryfikacja architektury → commit → dopiero następna faza.
 
@@ -177,25 +180,18 @@ Konfiguracja: `src/main/resources/application.yml` (sekcja `jozef.*`). Sekrety t
 
 ## Punkt wznowienia (następna sesja)
 
-Zrobione w tej sesji — **MVP 1 domknięte w całości** (STT + wake word + VAD):
+Zrobione w tej sesji — **fazy 18 i 19** (ostatnie z roadmapy):
 
-- ✅ **Faza 7 (STT + VAD):** `VoskSpeechRecognizer` — lokalny, offline STT (model Vosk, 16 kHz mono) + `MicrophoneAudioSource` (TargetDataLine). `EnergyVoiceActivityDetector` (VAD) — kończy nasłuch po ciszy, nie ucina komend. Fallback do konsoli, gdy modelu brak.
-- ✅ **Faza 9 (wake word):** `WakeWordDetector` + `VoskWakeWordDetector` — ciągłe nasłuchiwanie, detekcja „hej Jozef" i wyciągnięcie komendy po słowie budzącym. `VoiceLoop` używa detektora (jeśli aktywny).
-- ✅ Natywne biblioteki Vosk ekstrahowane z fat-jara do `data/native/vosk` + `jna.library.path` (analogicznie do JNativeHook).
-- ✅ **Auto-instalacja modelu:** `VoskModelManager` — przy starcie sprawdza, czy model jest zainstalowany; jeśli nie, pobiera (~50 MB) i rozpakowuje automatycznie (flag `speech.stt.auto-download`, domyślnie true). Zweryfikowane end-to-end.
-- ✅ Konfiguracja: `speech.stt.provider: vosk`, `speech.stt.model`, `wakeword.enabled: true`, `speech.vad.enabled: true`.
-- ✅ 59 testów zielonych, pełny build OK, smoke-test (vosk + VAD + tray + hotkey) OK.
+- ✅ **Faza 18: Proactive background agent** — `TimerScheduler`/`InMemoryTimerScheduler` (przypomnienia), `CalendarWatcher` + `GmailWatcher` (proaktywne powiadomienia), `ProactiveAgentService` (wstrzykuje zdarzenie do pętli agenta i mówi wynik). Tools: `set_timer`, `list_timers`, `cancel_timer`.
+- ✅ **Faza 19: Advanced planning** — `Planner` (LLM → JSON kroków), `PlanExecutor` (wykonanie z tą samą polityką uprawnień/potwierdzeń), `AutonomousPlanner` (plan → execute → observe → correct, `max-attempts`). Tools: `plan_task`, `list_plans`, `execute_plan`, `autonomous_task`.
+- ✅ `AgentRuntime.process` zsynchronizowany (głos i proaktywne trigger nie przeplatają się).
+- ✅ 72 testy zielone, pełny build OK, smoke-test (proactive + planning init) OK.
 
-**Uruchomienie dla nietechnicznego użytkownika:**
+**Stan roadmapy:** wszystkie fazy 1–19 zaimplementowane. Zostały tylko adaptery LLM `anthropic`/`gemini` (opcjonalne).
 
-1. Uruchom aplikację (`java -jar jozef-*.jar`).
-2. Przy pierwszym starcie model Vosk pobierze się i zainstaluje sam (`data/vosk-model-small-pl-0.22`).
-3. Gotowe — log pokaże `stt=vosk, wake-word=vosk-wake-word`, a Jozef słucha przez mikrofon („hej Jozef").
+**Najbliższe kroki (do wyboru):**
 
-Można wyłączyć auto-pobieranie: `jozef.speech.stt.auto-download: false` (wtedy model trzeba włożyć ręcznie do `data/`).
-
-**Najbliższe kroki:**
-
-1. **Faza 18–19:** proaktywność (CalendarWatcher/GmailWatcher/TimerScheduler) i planowanie.
+1. Adaptery LLM `anthropic` / `gemini`.
+2. Polerowanie: overlay z przyciskami potwierdzeń, persystencja sesji/planów, testy integracyjne.
 
 Sekrety tylko przez zmienne środowiskowe: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
