@@ -13,6 +13,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -47,8 +48,25 @@ public class GoogleCalendarService {
                 + "&maxResults=" + Math.max(1, maxResults)
                 + "&orderBy=startTime"
                 + "&singleEvents=true";
+        return parseEventList(getJson(url));
+    }
 
-        Map<String, Object> json = getJson(url);
+    /** Events on a specific day ({@code yyyy-MM-dd}), in the system time zone. */
+    public List<CalendarEvent> listForDay(String isoDate) {
+        LocalDate day = LocalDate.parse(isoDate);
+        ZoneId tz = ZoneId.systemDefault();
+        Instant start = day.atStartOfDay(tz).toInstant();
+        Instant end = day.plusDays(1).atStartOfDay(tz).toInstant();
+        String url = BASE + "/calendars/" + urlEncode(calendarId) + "/events"
+                + "?timeMin=" + urlEncode(start.toString())
+                + "&timeMax=" + urlEncode(end.toString())
+                + "&maxResults=50"
+                + "&orderBy=startTime"
+                + "&singleEvents=true";
+        return parseEventList(getJson(url));
+    }
+
+    private List<CalendarEvent> parseEventList(Map<String, Object> json) {
         List<CalendarEvent> events = new ArrayList<>();
         Object raw = json.get("items");
         if (raw instanceof List<?> list) {

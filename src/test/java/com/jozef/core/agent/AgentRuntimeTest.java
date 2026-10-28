@@ -22,7 +22,9 @@ import com.jozef.llm.ChatResponse;
 import com.jozef.llm.LLMProvider;
 import com.jozef.llm.ToolCall;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +34,9 @@ import java.util.Queue;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AgentRuntimeTest {
+
+    @TempDir
+    Path tempDir;
 
     private static class FakeLlm implements LLMProvider {
         private final Queue<ChatResponse> responses = new ArrayDeque<>();
@@ -178,11 +183,11 @@ class AgentRuntimeTest {
                 tools,
                 (SystemPromptProvider) () -> "You are Jozef.",
                 new RecordingEventBus(),
-                new SessionManager(),
+                new SessionManager(tempDir.resolve("session.json").toString()),
                 new PermissionManager(),
                 confirmation,
                 new AgentProperties(5, 30),
-                new LlmProperties("fake", "m", null, null, 0.7, 100),
+                new LlmProperties("fake", "m", null, null, 0.7, 100, null),
                 contextAggregator,
                 new MemoryProperties(50, 10, null, null));
     }

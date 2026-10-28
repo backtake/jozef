@@ -10,7 +10,9 @@ import lombok.extern.slf4j.Slf4j;
  * Provides the LLMProvider implementation based on configuration.
  *
  * The active provider is chosen entirely from {@code jozef.llm.provider};
- * switching providers requires zero changes to agent logic.
+ * switching providers requires zero changes to agent logic. An optional
+ * {@code jozef.llm.fallback} section wraps the primary provider with an
+ * automatic fallback (e.g. local Ollama first, DeepSeek when it fails).
  */
 @Slf4j
 public class LLMCapability implements Capability {
@@ -24,30 +26,47 @@ public class LLMCapability implements Capability {
     }
 
     private LLMProvider createProvider(LlmProperties props) {
-        String providerName = props.provider() == null ? "ollama" : props.provider().toLowerCase();
+        LLMProvider primary = buildProvider(
+                props.provider(), props.model(), props.endpoint(), props.apiKeyEnv());
 
-        return switch (providerName) {
-            case "ollama" -> new OllamaProvider(props.model(), props.endpoint());
+        LlmProperties.FallbackProperties fb = props.fallback();
+        if (fb != null && !isBlank(fb.provider())
+                && !fb.provider().equalsIgnoreCase(props.provider() == null ? "" : props.provider())) {
+            LLMProvider fallback = buildProvider(
+                    fb.provider(), fb.model(), fb.endpoint(), fb.apiKeyEnv());
+            log.info("LLM fallback enabled: {} → {}", primary.name(), fallback.name());
+            return new FallbackLlmProvider(primary, fallback);
+        }
+        return primary;
+    }
+
+    private LLMProvider buildProvider(String providerName, String model, String endpoint, String apiKeyEnv) {
+        String name = providerName == null || providerName.isBlank() ? "ollama" : providerName.toLowerCase();
+
+        return switch (name) {
+            case "ollama" -> new OllamaProvider(
+                    defaultIfBlank(model, "llama3.2"),
+                    defaultIfBlank(endpoint, "http://localhost:11434"));
             case "openai" -> {
-                String apiKey = resolveApiKey(props.apiKeyEnv(), "OPENAI_API_KEY");
-                yield new OpenAiLlmProvider(props.model(), apiKey, props.endpoint());
+                String apiKey = resolveApiKey(apiKeyEnv, "OPENAI_API_KEY");
+                yield new OpenAiLlmProvider(
+                        defaultIfBlank(model, "gpt-4o-mini"),
+                        apiKey,
+                        defaultIfBlank(endpoint, "https://api.openai.com/v1/chat/completions"));
             }
             case "deepseek" -> {
                 // DeepSeek exposes an OpenAI-compatible API (Bearer auth).
-                String apiKey = resolveApiKey(props.apiKeyEnv(), "DEEPSEEK_API_KEY");
-                String endpoint = (props.endpoint() == null || props.endpoint().isBlank())
-                        ? "https://api.deepseek.com/v1/chat/completions"
-                        : props.endpoint();
-                String model = (props.model() == null || props.model().isBlank())
-                        ? "deepseek-chat"
-                        : props.model();
-                yield new OpenAiLlmProvider(model, apiKey, endpoint);
+                String apiKey = resolveApiKey(apiKeyEnv, "DEEPSEEK_API_KEY");
+                yield new OpenAiLlmProvider(
+                        defaultIfBlank(model, "deepseek-chat"),
+                        apiKey,
+                        defaultIfBlank(endpoint, "https://api.deepseek.com/v1/chat/completions"));
             }
             case "anthropic", "gemini" ->
                     throw new IllegalArgumentException(
-                            "LLM provider '" + providerName + "' is not implemented yet. "
+                            "LLM provider '" + name + "' is not implemented yet. "
                                     + "Supported: ollama, openai, deepseek.");
-            default -> throw new IllegalArgumentException("Unknown LLM provider: " + providerName);
+            default -> throw new IllegalArgumentException("Unknown LLM provider: " + name);
         };
     }
 
@@ -59,6 +78,14 @@ public class LLMCapability implements Capability {
             }
         }
         return System.getenv(fallbackEnvVar);
+    }
+
+    private static String defaultIfBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     public LLMProvider provider() {

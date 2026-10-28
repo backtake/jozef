@@ -23,8 +23,13 @@ public class Session {
     private volatile boolean listening;
 
     public Session() {
-        this.id = UUID.randomUUID().toString();
-        this.startedAt = Instant.now();
+        this(UUID.randomUUID().toString(), Instant.now());
+    }
+
+    /** Creates a session with an explicit identity and start time (used on restore). */
+    public Session(String id, Instant startedAt) {
+        this.id = id;
+        this.startedAt = startedAt;
         this.conversation = Collections.synchronizedList(new ArrayList<>());
         this.context = new ConcurrentHashMap<>();
         this.lastActions = Collections.synchronizedList(new ArrayList<>());
@@ -36,6 +41,13 @@ public class Session {
 
     public void addTurn(String role, String content) {
         conversation.add(new ConversationTurn(role, content, Instant.now()));
+    }
+
+    /** Adds a previously-recorded turn (used when restoring a session). */
+    public void addTurn(ConversationTurn turn) {
+        if (turn != null) {
+            conversation.add(turn);
+        }
     }
 
     public List<ConversationTurn> conversation() {

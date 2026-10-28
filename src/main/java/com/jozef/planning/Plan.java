@@ -1,5 +1,7 @@
 package com.jozef.planning;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -18,7 +20,10 @@ public class Plan {
     @Setter
     private PlanStatus status = PlanStatus.CREATED;
 
-    public Plan(String id, String goal, List<PlanStep> steps) {
+    @JsonCreator
+    public Plan(@JsonProperty("id") String id,
+                @JsonProperty("goal") String goal,
+                @JsonProperty("steps") List<PlanStep> steps) {
         this.id = id;
         this.goal = goal;
         this.steps = steps == null ? List.of() : steps;

@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.6.0] - 2025-10-28
+
+### Added
+- LLM fallback: primary provider (Ollama) automatically fails over to a
+  secondary provider (DeepSeek) on errors — `jozef.llm.fallback.*`
+- Notebook with dates: notes can be attached to a calendar day via the
+  optional `date` parameter (`remember_note`), filtered via `recall_notes`
+  (by date) and `recall_day_notes`; `MemoryEntry` gained a `date` field
+- `daily_briefing` tool (new `AssistantCapability`) — composes notes,
+  calendar events and active timers into one "what does my day look like"
+- `GoogleCalendarService.listForDay(isoDate)` — events for a specific day
+- Persistent plans: `FilePlanStore` (JSON, `data/plans.json`) replaces the
+  in-memory store; plans survive restarts
+- Persistent sessions: `SessionManager` saves conversation history to
+  `data/session.json` and restores it on startup
+
+### Changed
+- `LlmProperties` now carries an optional nested `fallback` section
+- `PlanningProperties` gained `file`
+- `AgentRuntime` persists the session after each turn
+- `MemoryCapability` day-keyword resolution (`today`/`jutro`/`wczoraj`) moved
+  to a shared `Dates` utility
+
 ## [0.5.0] - 2025-08-16
 
 ### Added

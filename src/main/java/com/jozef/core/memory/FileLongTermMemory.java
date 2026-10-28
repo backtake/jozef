@@ -53,6 +53,11 @@ public class FileLongTermMemory implements LongTermMemory {
 
     @Override
     public MemoryEntry remember(String content, List<String> tags) {
+        return remember(content, tags, null);
+    }
+
+    @Override
+    public MemoryEntry remember(String content, List<String> tags, String date) {
         if (content == null || content.isBlank()) {
             throw new IllegalArgumentException("Memory content cannot be empty");
         }
@@ -60,7 +65,8 @@ public class FileLongTermMemory implements LongTermMemory {
                 UUID.randomUUID().toString(),
                 content,
                 tags == null ? List.of() : List.copyOf(tags),
-                System.currentTimeMillis());
+                System.currentTimeMillis(),
+                normalizeDate(date));
         synchronized (lock) {
             entries.put(entry.id(), entry);
             persist();
@@ -85,6 +91,31 @@ public class FileLongTermMemory implements LongTermMemory {
             return entries.values().stream()
                     .filter(e -> matches(e, q))
                     .sorted(Comparator.comparingLong(MemoryEntry::createdAtMillis).reversed())
+                    .toList();
+        }
+    }
+
+    @Override
+    public List<MemoryEntry> forDate(String date) {
+        String d = normalizeDate(date);
+        if (d == null) {
+            return List.of();
+        }
+        synchronized (lock) {
+            return entries.values().stream()
+                    .filter(e -> d.equals(e.date()))
+                    .sorted(Comparator.comparingLong(MemoryEntry::createdAtMillis))
+                    .toList();
+        }
+    }
+
+    @Override
+    public List<MemoryEntry> fromDate(String date) {
+        String d = normalizeDate(date);
+        synchronized (lock) {
+            return entries.values().stream()
+                    .filter(e -> d == null || (e.date() != null && e.date().compareTo(d) >= 0))
+                    .sorted(Comparator.comparingLong(MemoryEntry::createdAtMillis))
                     .toList();
         }
     }
@@ -124,6 +155,15 @@ public class FileLongTermMemory implements LongTermMemory {
         } catch (IOException e) {
             log.error("Could not persist memory to {}: {}", path, e.getMessage(), e);
         }
+    }
+
+    /** Trims and validates an ISO date; returns null for blank/unknown values. */
+    private static String normalizeDate(String date) {
+        if (date == null || date.isBlank()) {
+            return null;
+        }
+        String d = date.trim();
+        return d.matches("\\d{4}-\\d{2}-\\d{2}") ? d : null;
     }
 
     public Path path() {

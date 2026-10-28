@@ -1,10 +1,17 @@
 package com.jozef.core.session;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SessionTest {
+
+    @TempDir
+    Path tempDir;
+
 
     @Test
     void storesConversationTurns() {
@@ -32,7 +39,7 @@ class SessionTest {
 
     @Test
     void resetCreatesFreshSession() {
-        SessionManager manager = new SessionManager();
+        SessionManager manager = new SessionManager(tempDir.resolve("session.json").toString());
         String firstId = manager.current().id();
 
         Session fresh = manager.reset();

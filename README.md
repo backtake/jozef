@@ -43,8 +43,9 @@ Key packages:
 - `core.capabilities` / `core.lifecycle` — capability & lifecycle management
 - `core.security` — `PermissionManager`, `ConfirmationService`
 - `core.session` / `core.context` — conversation memory, system prompt/persona, context aggregation
-- `core.memory` — `LongTermMemory` / `FileLongTermMemory` + `remember_note` / `recall_notes` / `forget_note`
-- `llm` — provider abstraction (`LLMProvider`) + Ollama/OpenAI/DeepSeek adapters
+- `core.memory` — `LongTermMemory` / `FileLongTermMemory` + `remember_note` / `recall_notes` / `recall_day_notes` / `forget_note` (notes can be attached to a day — a simple notebook)
+- `assistant` — `AssistantCapability` + `daily_briefing` (notes + calendar + timers in one answer)
+- `llm` — provider abstraction (`LLMProvider`) + Ollama/OpenAI/DeepSeek adapters + `FallbackLlmProvider` (automatic failover)
 - `speech` — replaceable `SpeechRecognizer` / `SpeechSynthesizer` / `WakeWordDetector`
   (console + Vosk offline STT, VAD, Edge TTS)
 - `automation` — `DesktopAutomation` abstraction + Windows implementation
@@ -52,7 +53,7 @@ Key packages:
 - `tray` — `TrayCapability` + autostart + global hotkey (JNativeHook)
 - `google` — `GoogleAuthService` (OAuth) + `GoogleCalendarService` / `GmailService`
 - `proactive` — `TimerScheduler` + `CalendarWatcher` / `GmailWatcher` (background agent)
-- `planning` — `Planner` / `PlanExecutor` / `AutonomousPlanner` (plan → execute → correct)
+- `planning` — `Planner` / `PlanExecutor` / `AutonomousPlanner` (plan → execute → correct) + persistent `FilePlanStore`
 - `configuration` — Spring `@ConfigurationProperties` (`jozef.*`)
 - `bootstrap` — entry point + voice loop
 
@@ -92,5 +93,7 @@ environment variables (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`,
 All roadmap phases (1–19) are implemented: the voice pipeline (Vosk STT, VAD,
 "hej Jozef" wake word), MVP 2 (Playwright browser, Google OAuth/Calendar/Gmail),
 MVP 3 (overlay HUD, system tray + autostart + global hotkey, long-term memory +
-context), and the proactive agent + autonomous planning. Remaining (optional):
-Anthropic/Gemini LLM adapters.
+context), and the proactive agent + autonomous planning. On top of that: an
+LLM fallback (local Ollama → DeepSeek), a dated notebook, a `daily_briefing`
+tool, and persistent plans/sessions. Remaining (optional): Anthropic/Gemini LLM
+adapters.

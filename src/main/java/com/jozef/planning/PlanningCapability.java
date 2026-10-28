@@ -29,18 +29,20 @@ public class PlanningCapability implements Capability {
     private final Planner planner;
     private final PlanExecutor executor;
     private final AutonomousPlanner autonomous;
-    private final PlanStore store = new PlanStore();
+    private final PlanStore store;
 
     public PlanningCapability(PlanningProperties props,
                               LLMProvider llm,
                               ToolRegistry toolRegistry,
                               PermissionManager permissions,
-                              ConfirmationService confirmation) {
+                              ConfirmationService confirmation,
+                              PlanStore store) {
         this.props = props;
         this.toolRegistry = toolRegistry;
         this.planner = new Planner(llm, toolRegistry);
         this.executor = new PlanExecutor(toolRegistry, permissions, confirmation);
         this.autonomous = new AutonomousPlanner(planner, executor, props.maxAttempts());
+        this.store = store;
     }
 
     public PlanStore store() {

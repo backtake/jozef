@@ -119,6 +119,7 @@ public class AgentRuntime {
                 eventBus.publish(new AgentEvents.LLMRequestFailed(e.getMessage()));
                 String text = "Przepraszam, nie mogę teraz skorzystać z modelu językowego.";
                 sessions.current().addTurn("assistant", text);
+                sessions.persist();
                 return new AgentResult(text, executions, false);
             }
             eventBus.publish(new AgentEvents.LLMResponseReceived(
@@ -129,6 +130,7 @@ public class AgentRuntime {
             if (!response.hasToolCalls()) {
                 String text = response.content() == null ? "" : response.content();
                 sessions.current().addTurn("assistant", text);
+                sessions.persist();
                 return new AgentResult(text, executions, true);
             }
 
@@ -145,6 +147,7 @@ public class AgentRuntime {
 
         String text = "Wykonano zbyt wiele operacji naraz. Spróbuj prościej.";
         sessions.current().addTurn("assistant", text);
+        sessions.persist();
         return new AgentResult(text, executions, false);
     }
 

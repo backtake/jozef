@@ -27,7 +27,7 @@ public record JozefProperties(
         RuntimeProperties runtime
 ) {
     public JozefProperties {
-        if (llm == null) llm = new LlmProperties("ollama", "llama3.2", "http://localhost:11434", null, 0.7, 2048);
+        if (llm == null) llm = new LlmProperties("ollama", "llama3.2", "http://localhost:11434", null, 0.7, 2048, null);
         if (speech == null) speech = new SpeechProperties(null, null, null);
         if (overlay == null) overlay = new OverlayProperties(true, "top-right", 0.9, 5000);
         if (wakeword == null) wakeword = new WakeWordProperties(false, "hej jozef");
@@ -41,7 +41,7 @@ public record JozefProperties(
         if (security == null) security = new SecurityProperties("console");
         if (tray == null) tray = new TrayProperties(true, false, "ctrl alt J");
         if (proactive == null) proactive = new ProactiveProperties(true, 5, 5, 15);
-        if (planning == null) planning = new PlanningProperties(true, 3);
+        if (planning == null) planning = new PlanningProperties(true, 3, "data/plans.json");
         if (runtime == null) runtime = new RuntimeProperties(null, null);
     }
 }

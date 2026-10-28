@@ -7,8 +7,10 @@ import com.jozef.core.action.LambdaAction;
 import com.jozef.core.capabilities.Capability;
 import com.jozef.core.tool.ToolParameters;
 import com.jozef.core.tool.ToolRegistry;
+import com.jozef.core.util.Dates;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -16,6 +18,10 @@ import java.util.Set;
 /**
  * Exposes the long-term memory to the agent as tools:
  * {@code remember_note}, {@code recall_notes}, {@code forget_note}.
+ *
+ * <p>Notes can be attached to a calendar day via the optional {@code date}
+ * parameter, which turns the store into a simple notebook for daily
+ * arrangements and plans for today/future days.</p>
  */
 @Slf4j
 public class MemoryCapability implements Capability {
@@ -46,33 +52,62 @@ public class MemoryCapability implements Capability {
     public void initialize() {
         toolRegistry.register(new LambdaAction(
                 "remember_note",
-                "Save a fact/note to long-term memory (persists across restarts).",
+                "Save a fact/note to long-term memory (persists across restarts). "
+                        + "Use the optional 'date' to attach it to a specific day for daily plans.",
                 new ToolParameters()
                         .string("content", "The note content to remember", true)
                         .string("tags", "Optional comma-separated tags", false)
+                        .string("date", "Optional day: ISO yyyy-MM-dd, or 'today'/'tomorrow'. Empty = general note.", false)
                         .build(),
                 Set.of("MEMORY"), ExecutionStrategy.SAFE,
                 ctx -> {
                     String content = require(ctx, "content");
                     List<String> tags = parseTags(ctx.getString("tags"));
-                    MemoryEntry entry = memory.remember(content, tags);
-                    return ActionResult.ok("Remembered note " + entry.id(), entry);
+                    String date = resolveDate(ctx.getString("date"));
+                    MemoryEntry entry = memory.remember(content, tags, date);
+                    return ActionResult.ok("Remembered note " + entry.id() + (date != null ? " for " + date : ""), entry);
                 }));
 
         toolRegistry.register(new LambdaAction(
                 "recall_notes",
-                "Search/list notes stored in long-term memory.",
+                "Search/list notes stored in long-term memory. Use 'date' to list notes for a specific day.",
                 new ToolParameters()
                         .string("query", "Search query (empty = all notes)", false)
+                        .string("date", "Optional day filter: ISO yyyy-MM-dd, or 'today'/'tomorrow'", false)
                         .integer("limit", "Maximum number of notes (default 10)", false)
                         .build(),
                 Set.of("MEMORY"), ExecutionStrategy.SAFE,
                 ctx -> {
                     int limit = ctx.get("limit") instanceof Number n ? n.intValue() : 10;
                     String query = ctx.getString("query");
-                    List<MemoryEntry> notes = (query == null || query.isBlank())
-                            ? memory.recent(limit)
-                            : memory.search(query);
+                    String dateRaw = ctx.getString("date");
+                    List<MemoryEntry> notes;
+                    if (dateRaw != null && !dateRaw.isBlank()) {
+                        notes = memory.forDate(resolveDate(dateRaw));
+                    } else if (query != null && !query.isBlank()) {
+                        notes = memory.search(query);
+                    } else {
+                        notes = memory.recent(limit);
+                    }
+                    if (notes.size() > limit) {
+                        notes = notes.subList(0, limit);
+                    }
+                    return ActionResult.ok(formatNotes(notes), notes);
+                }));
+
+        toolRegistry.register(new LambdaAction(
+                "recall_day_notes",
+                "List notes attached to a specific day (default: today).",
+                new ToolParameters()
+                        .string("date", "Day: ISO yyyy-MM-dd, or 'today'/'tomorrow' (default today)", false)
+                        .build(),
+                Set.of("MEMORY"), ExecutionStrategy.SAFE,
+                ctx -> {
+                    String date = resolveDate(ctx.getString("date"));
+                    if (date == null) {
+                        date = LocalDate.now().toString();
+                    }
+                    List<MemoryEntry> notes = memory.forDate(date);
                     return ActionResult.ok(formatNotes(notes), notes);
                 }));
 
@@ -102,13 +137,22 @@ public class MemoryCapability implements Capability {
                 .toList();
     }
 
+    /** Maps common day keywords to ISO dates; passes through/returns null otherwise. */
+    static String resolveDate(String raw) {
+        return Dates.resolveDay(raw);
+    }
+
     private static String formatNotes(List<MemoryEntry> notes) {
         if (notes.isEmpty()) {
             return "No notes.";
         }
         StringBuilder sb = new StringBuilder();
         for (MemoryEntry note : notes) {
-            sb.append("- [").append(note.id()).append("] ").append(note.content());
+            sb.append("- [").append(note.id()).append("] ");
+            if (note.date() != null) {
+                sb.append("(").append(note.date()).append(") ");
+            }
+            sb.append(note.content());
             if (!note.tags().isEmpty()) {
                 sb.append(" #").append(String.join(" #", note.tags()));
             }

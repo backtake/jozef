@@ -51,4 +51,30 @@ class FileLongTermMemoryTest {
         FileLongTermMemory reloaded = new FileLongTermMemory(file.toString());
         assertThat(reloaded.recent(5)).extracting(MemoryEntry::content).contains("persisted note");
     }
+
+    @Test
+    void remembersWithDateAndFiltersByDate() {
+        FileLongTermMemory memory = new FileLongTermMemory(tempDir.resolve("m.json").toString());
+        memory.remember("Plan na dziś: zakupy", List.of(), "2026-10-07");
+        memory.remember("Plan na jutro: dentysta", List.of(), "2026-10-08");
+        memory.remember("Notatka bez daty", List.of());
+
+        assertThat(memory.forDate("2026-10-07"))
+                .extracting(MemoryEntry::content)
+                .containsExactly("Plan na dziś: zakupy");
+        assertThat(memory.forDate("2026-10-08")).hasSize(1);
+        assertThat(memory.forDate("2026-10-09")).isEmpty();
+    }
+
+    @Test
+    void listsNotesFromDateOnwards() {
+        FileLongTermMemory memory = new FileLongTermMemory(tempDir.resolve("m.json").toString());
+        memory.remember("wczoraj", List.of(), "2026-10-06");
+        memory.remember("dziś", List.of(), "2026-10-07");
+        memory.remember("jutro", List.of(), "2026-10-08");
+
+        assertThat(memory.fromDate("2026-10-07"))
+                .extracting(MemoryEntry::content)
+                .containsExactly("dziś", "jutro");
+    }
 }

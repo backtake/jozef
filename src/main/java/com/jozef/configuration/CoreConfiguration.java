@@ -1,5 +1,6 @@
 package com.jozef.configuration;
 
+import com.jozef.assistant.AssistantCapability;
 import com.jozef.automation.AutomationCapability;
 import com.jozef.browser.BrowserCapability;
 import com.jozef.core.agent.AgentRuntime;
@@ -33,6 +34,8 @@ import com.jozef.google.GoogleCapability;
 import com.jozef.llm.LLMCapability;
 import com.jozef.overlay.OverlayCapability;
 import com.jozef.planning.PlanningCapability;
+import com.jozef.planning.PlanStore;
+import com.jozef.planning.FilePlanStore;
 import com.jozef.proactive.ProactiveAgentService;
 import com.jozef.proactive.ProactiveCapability;
 import com.jozef.speech.SpeechCapability;
@@ -271,8 +274,22 @@ public class CoreConfiguration {
                                                  LLMCapability llmCapability,
                                                  ToolRegistry toolRegistry,
                                                  PermissionManager permissionManager,
-                                                 ConfirmationService confirmationService) {
+                                                 ConfirmationService confirmationService,
+                                                 PlanStore planStore) {
         return new PlanningCapability(props.planning(), llmCapability.provider(), toolRegistry,
-                permissionManager, confirmationService);
+                permissionManager, confirmationService, planStore);
+    }
+
+    @Bean
+    public PlanStore planStore(JozefProperties props) {
+        return new FilePlanStore(props.planning().file());
+    }
+
+    @Bean
+    public AssistantCapability assistantCapability(LongTermMemory longTermMemory,
+                                                   GoogleCapability googleCapability,
+                                                   ProactiveCapability proactiveCapability,
+                                                   ToolRegistry toolRegistry) {
+        return new AssistantCapability(longTermMemory, googleCapability, proactiveCapability, toolRegistry);
     }
 }

@@ -20,6 +20,11 @@ jozef:
     api-key-env: OPENAI_API_KEY    # env var name for the secret (never inline)
     temperature: 0.7
     max-tokens: 2048
+    fallback:                      # używany automatycznie, gdy Ollama zawiedzie
+      provider: deepseek
+      model: deepseek-chat
+      endpoint: ""                 # puste = https://api.deepseek.com/v1/chat/completions
+      api-key-env: DEEPSEEK_API_KEY
 
   # ─── Persona ────────────────────────────────────────
   persona:
@@ -116,6 +121,7 @@ jozef:
   planning:
     enabled: true
     max-attempts: 3                # ile razy replanować po błędzie
+    file: data/plans.json          # trwały zapis planów (przetrwają restart)
 
   # ─── Runtime ────────────────────────────────────────
   runtime:

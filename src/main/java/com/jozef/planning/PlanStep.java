@@ -1,5 +1,7 @@
 package com.jozef.planning;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -21,7 +23,11 @@ public class PlanStep {
     @Setter
     private String result;
 
-    public PlanStep(String id, String description, String tool, Map<String, Object> arguments) {
+    @JsonCreator
+    public PlanStep(@JsonProperty("id") String id,
+                    @JsonProperty("description") String description,
+                    @JsonProperty("tool") String tool,
+                    @JsonProperty("arguments") Map<String, Object> arguments) {
         this.id = id;
         this.description = description == null ? "" : description;
         this.tool = tool;
