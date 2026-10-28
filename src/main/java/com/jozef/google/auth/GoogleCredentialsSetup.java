@@ -5,21 +5,23 @@ import com.jozef.core.util.AtomicFiles;
 import lombok.extern.slf4j.Slf4j;
 
 import java.awt.Desktop;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.IOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
- * First-run interactive Google credential setup.
+ * Automatic first-run Google credential setup.
  *
- * <p>When no OAuth client credentials are configured, Jozef prompts the user
- * in the console, opens the Google Cloud Console in the browser, and saves the
- * pasted {@code client_id}/{@code client_secret} to the git-ignored
- * {@code data/} directory. The user never shares these values with anyone.</p>
+ * <p>Jozef opens the Google Cloud Console in the browser, then watches the
+ * Downloads/data directories for the {@code client_secret*.json} file that
+ * Google downloads when the user creates a "Desktop app" OAuth client. The
+ * user never has to type anything into Jozef.</p>
  */
 @Slf4j
 public final class GoogleCredentialsSetup {
@@ -31,19 +33,23 @@ public final class GoogleCredentialsSetup {
     }
 
     /**
-     * Prompts interactively for client id/secret. Returns {@code null} when the
-     * user skips (blank input) or no console is available.
+     * Polls the Downloads/Desktop/data directories for a Google-downloaded
+     * {@code client_secret*.json} file and returns the credentials from the
+     * first valid one found. Returns {@code null} on timeout.
      */
-    public static GoogleCredentialsFile promptInteractive() {
-        String clientId = prompt("Google client_id (wklej i Enter; sam Enter = pomiń): ");
-        if (clientId == null || clientId.isBlank()) {
-            return null;
+    public static GoogleCredentialsFile findDownloadedCredentials(long timeoutMillis) {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (System.currentTimeMillis() < deadline) {
+            for (Path dir : candidateDirs()) {
+                GoogleCredentialsFile creds = scanForClientSecret(dir);
+                if (creds != null) {
+                    log.info("Znaleziono dane logowania Google w {}", dir);
+                    return creds;
+                }
+            }
+            sleep(2000);
         }
-        String clientSecret = prompt("Google client_secret (wklej i Enter): ");
-        if (clientSecret == null || clientSecret.isBlank()) {
-            return null;
-        }
-        return new GoogleCredentialsFile(clientId.trim(), clientSecret.trim());
+        return null;
     }
 
     /** Persists credentials as a flat JSON file (git-ignored). */
@@ -72,22 +78,45 @@ public final class GoogleCredentialsSetup {
         log.info("Otwórz ręcznie: {}", CONSOLE_URL);
     }
 
-    private static String prompt(String question) {
-        java.io.Console console = System.console();
-        if (console != null) {
-            String line = console.readLine(question);
-            return line == null ? null : line.trim();
+    // ─── Scanning ──────────────────────────────────────────────
+
+    private static List<Path> candidateDirs() {
+        List<Path> dirs = new ArrayList<>();
+        dirs.add(Path.of("data"));
+        String home = System.getProperty("user.home");
+        if (home != null && !home.isBlank()) {
+            dirs.add(Path.of(home, "Downloads"));
+            dirs.add(Path.of(home, "Desktop"));
         }
-        // Fallback for IDEs / wrapped processes without a real console.
-        System.out.print(question);
-        System.out.flush();
-        try {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
-            String line = reader.readLine();
-            return line == null ? null : line.trim();
-        } catch (Exception e) {
-            log.warn("Cannot read from console: {}", e.getMessage());
+        dirs.add(Path.of("."));
+        return dirs;
+    }
+
+    static GoogleCredentialsFile scanForClientSecret(Path dir) {
+        if (!Files.isDirectory(dir)) {
             return null;
+        }
+        try (Stream<Path> files = Files.list(dir)) {
+            for (Path file : files.filter(Files::isRegularFile).toList()) {
+                String name = file.getFileName().toString().toLowerCase();
+                if (name.startsWith("client_secret") && name.endsWith(".json")) {
+                    GoogleCredentialsFile creds = GoogleCredentialsFile.load(file.toString());
+                    if (creds != null) {
+                        return creds;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            log.warn("Cannot scan {} for Google credentials: {}", dir, e.getMessage());
+        }
+        return null;
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 }

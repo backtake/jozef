@@ -79,4 +79,27 @@ class GoogleCredentialsFileTest {
         assertThat(loaded.clientId()).isEqualTo("id-x");
         assertThat(loaded.clientSecret()).isEqualTo("secret-x");
     }
+
+    @Test
+    void scanFindsGoogleDownloadedClientSecret() throws Exception {
+        Path dir = tempDir.resolve("downloads");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("client_secret_123.apps.googleusercontent.com.json"),
+                "{\"installed\":{\"client_id\":\"dl-id\",\"client_secret\":\"dl-secret\"}}");
+
+        GoogleCredentialsFile creds = GoogleCredentialsSetup.scanForClientSecret(dir);
+
+        assertThat(creds).isNotNull();
+        assertThat(creds.clientId()).isEqualTo("dl-id");
+        assertThat(creds.clientSecret()).isEqualTo("dl-secret");
+    }
+
+    @Test
+    void scanIgnoresUnrelatedFiles() throws Exception {
+        Path dir = tempDir.resolve("downloads");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("notes.txt"), "hello");
+
+        assertThat(GoogleCredentialsSetup.scanForClientSecret(dir)).isNull();
+    }
 }

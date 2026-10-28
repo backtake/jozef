@@ -87,22 +87,24 @@ public class GoogleCapability implements Capability {
             }
         }
 
-        // First-run: no credentials anywhere → guide the user through setup.
+        // First-run: no credentials anywhere → automatic browser-driven setup.
         if (isBlank(clientId) || isBlank(clientSecret)) {
             if (props.authenticateOnStartup()) {
-                log.info("Brak danych logowania Google — uruchamiam konfigurację.\n"
+                log.info("Brak danych logowania Google — uruchamiam automatyczną konfigurację.\n"
                         + "  1. W przeglądarce otworzy się Google Cloud Console.\n"
-                        + "  2. Utwórz projekt i dane logowania 'OAuth client ID' typu 'Desktop app'.\n"
-                        + "  3. Skopiuj client_id oraz client_secret i wklej je tutaj.");
+                        + "  2. Utwórz dane logowania 'OAuth client ID' typu 'Desktop app'.\n"
+                        + "  3. Kliknij 'Pobierz JSON' — plik trafi do folderu Pobrane.\n"
+                        + "     (Nic nie musisz wpisywać — Jozef sam znajdzie plik i się zaloguje.)");
                 GoogleCredentialsSetup.openConsoleInBrowser();
-                GoogleCredentialsFile setup = GoogleCredentialsSetup.promptInteractive();
-                if (setup != null) {
-                    GoogleCredentialsSetup.save(props.credentialsFile(), setup);
-                    clientId = setup.clientId();
-                    clientSecret = setup.clientSecret();
+                GoogleCredentialsFile found = GoogleCredentialsSetup.findDownloadedCredentials(600_000L);
+                if (found != null) {
+                    GoogleCredentialsSetup.save(props.credentialsFile(), found);
+                    clientId = found.clientId();
+                    clientSecret = found.clientSecret();
+                    log.info("Znaleziono i zapisano dane logowania Google.");
                 } else {
-                    log.warn("Konfiguracja Google pominięta. Wznowisz ją przy następnym uruchomieniu "
-                            + "(albo ręcznie zapisz plik {}).", props.credentialsFile());
+                    log.warn("Nie znaleziono pliku credentials w wyznaczonym czasie. "
+                            + "Jozef uruchomi się bez Google — konfigurację powtórzy przy następnym starcie.");
                 }
             } else {
                 log.warn("Google capability skipped — authenticate-on-startup jest wyłączone.");

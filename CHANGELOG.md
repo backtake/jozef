@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0] - 2025-10-28
+
+### Changed
+- Google first-run setup is now fully automatic — no console typing. Jozef
+  opens the Google Cloud Console, then watches Downloads/Desktop/data for the
+  downloaded `client_secret*.json` file and continues to the OAuth login
+  without any manual input or restart
+
 ## [0.9.0] - 2025-10-28
 
 ### Added
