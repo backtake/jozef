@@ -44,7 +44,7 @@ public class SearchWebAction implements Action {
         try {
             String encoded = java.net.URLEncoder.encode(query, "UTF-8");
             String url = "https://www.google.com/search?q=" + encoded;
-            Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start \"\" " + url});
+            Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start \"\" \"" + url + "\""});
             return ActionResult.ok("Searched for: " + query);
         } catch (Exception e) {
             return ActionResult.fail("Search failed: " + e.getMessage());

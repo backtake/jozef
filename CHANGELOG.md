@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.7.0] - 2025-10-28
+
+### Security
+- Fixed shell command injection in desktop automation: application names and
+  window titles are now validated/escaped before being embedded in
+  `cmd`/PowerShell command lines (new `ShellArgs` helper)
+- Hardened `search_web` by quoting the browser URL
+
+### Fixed
+- `EventLogger` counter is now an `AtomicInteger` (was a racy `int` on the
+  async event bus)
+- `WindowsAutomationService.typeText` uses a shared daemon executor instead of
+  spawning a new thread per call
+
+### Tests
+- Unit tests: `ShellArgsTest`, `SpeechTextCleanerTest`, `DatesTest`,
+  `ConfirmationServiceTest`, `PermissionManagerTest`
+- Integration (e2e) tests: `AgentEndToEndTest` — full reasoning → tool-calling
+  → final-answer loop with real memory/timers/confirmation, starting from the
+  user instruction (dictation out of scope)
+
 ## [0.6.0] - 2025-10-28
 
 ### Added

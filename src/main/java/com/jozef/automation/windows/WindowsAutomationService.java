@@ -15,6 +15,9 @@ import java.io.File;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Windows desktop automation built on Java AWT {@link Robot}.
@@ -26,6 +29,12 @@ import java.util.List;
 public class WindowsAutomationService implements DesktopAutomation {
 
     private final Robot robot;
+    private final ScheduledExecutorService clipboardRestore =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "clipboard-restore");
+                t.setDaemon(true);
+                return t;
+            });
 
     public WindowsAutomationService() {
         try {
@@ -56,7 +65,10 @@ public class WindowsAutomationService implements DesktopAutomation {
                 case "task manager", "menedżer zadań" -> "taskmgr";
                 case "settings", "ustawienia" -> "start ms-settings:";
                 case "spotify" -> "start spotify:";
-                default -> "start \"\" \"" + nameOrPath + "\"";
+                default -> {
+                    String safe = ShellArgs.requireSafeShellArgument(nameOrPath, "Application name");
+                    yield "start \"\" \"" + safe + "\"";
+                }
             };
             Runtime.getRuntime().exec(new String[]{"cmd", "/c", cmd});
             log.info("Launched application: {}", nameOrPath);
@@ -90,8 +102,9 @@ public class WindowsAutomationService implements DesktopAutomation {
     public void focusWindow(String titleOrProcess) {
         // Best-effort via PowerShell: bring the process's main window to front.
         try {
+            String safe = ShellArgs.escapePowerShellSingleQuoted(titleOrProcess);
             String script = "Get-Process | Where-Object { $_.MainWindowTitle -like '*"
-                    + titleOrProcess + "*' } | ForEach-Object { "
+                    + safe + "*' } | ForEach-Object { "
                     + "$sig = '[DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr hWnd);'; "
                     + "Add-Type -MemberDefinition $sig -Name W -Namespace N; "
                     + "[N.W]::SetForegroundWindow($_.MainWindowHandle) }";
@@ -164,15 +177,8 @@ public class WindowsAutomationService implements DesktopAutomation {
         String previous = readClipboard();
         writeClipboard(text);
         pressKey("ctrl+v");
-        // Best-effort restore of the user's clipboard.
-        new Thread(() -> {
-            try {
-                Thread.sleep(400);
-                writeClipboard(previous);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
-        }, "clipboard-restore").start();
+        // Best-effort restore of the user's clipboard (shared daemon executor).
+        clipboardRestore.schedule(() -> writeClipboard(previous), 400, TimeUnit.MILLISECONDS);
     }
 
     @Override
