@@ -1,6 +1,7 @@
 package com.jozef.google.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jozef.core.util.AtomicFiles;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.file.Files;
@@ -38,8 +39,7 @@ public class GoogleTokenStore {
 
     public void save(GoogleTokens tokens) {
         try {
-            Files.createDirectories(path.toAbsolutePath().getParent());
-            mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), tokens);
+            AtomicFiles.write(path, tokens, mapper);
             log.info("Google tokens saved to {}", path);
         } catch (Exception e) {
             log.error("Could not save Google tokens to {}: {}", path, e.getMessage(), e);

@@ -10,6 +10,7 @@ import com.jozef.core.capabilities.Capability;
 import com.jozef.core.tool.ToolParameters;
 import com.jozef.core.tool.ToolRegistry;
 import com.jozef.google.auth.GoogleAuthService;
+import com.jozef.google.auth.GoogleCredentialsFile;
 import com.jozef.google.auth.GoogleTokenStore;
 import com.jozef.google.calendar.CalendarEvent;
 import com.jozef.google.calendar.GoogleCalendarService;
@@ -77,8 +78,21 @@ public class GoogleCapability implements Capability {
         String clientSecret = resolve(props.clientSecret(), "GOOGLE_CLIENT_SECRET");
 
         if (isBlank(clientId) || isBlank(clientSecret)) {
-            log.warn("Google capability skipped: set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET "
-                    + "environment variables (or jozef.google.client-id/client-secret for local dev).");
+            GoogleCredentialsFile creds = GoogleCredentialsFile.load(props.credentialsFile());
+            if (creds != null) {
+                clientId = creds.clientId();
+                clientSecret = creds.clientSecret();
+                log.info("Google credentials loaded from {}", props.credentialsFile());
+            }
+        }
+
+        if (isBlank(clientId) || isBlank(clientSecret)) {
+            log.warn("Google capability skipped — brak danych logowania. Aby włączyć kalendarz i Gmaila:\n"
+                    + "  1. Wejdź na https://console.cloud.google.com/apis/credentials\n"
+                    + "  2. Utwórz projekt i dane logowania 'OAuth client ID' typu 'Desktop app'\n"
+                    + "  3. Pobierz plik JSON i zapisz go jako: " + props.credentialsFile() + "\n"
+                    + "     (albo ustaw zmienne środowiskowe GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)\n"
+                    + "  4. Uruchom Jozefa ponownie — otworzy okno logowania Google.");
             return;
         }
 
@@ -88,6 +102,19 @@ public class GoogleCapability implements Capability {
 
         registerCalendarTools();
         registerGmailTools();
+
+        if (props.authenticateOnStartup()) {
+            Thread authThread = new Thread(() -> {
+                try {
+                    auth.accessToken();
+                    log.info("Google authentication ready.");
+                } catch (Exception e) {
+                    log.error("Google startup authentication failed: {}", e.getMessage(), e);
+                }
+            }, "google-startup-auth");
+            authThread.setDaemon(true);
+            authThread.start();
+        }
 
         log.info("Google capability initialized (calendar + gmail, {} tools total).", toolRegistry.size());
     }

@@ -2,6 +2,7 @@ package com.jozef.core.session;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jozef.core.util.AtomicFiles;
 import lombok.extern.slf4j.Slf4j;
 
 import java.nio.file.Files;
@@ -76,7 +77,7 @@ public class SessionManager {
             }
             root.put("turns", turns);
 
-            mapper.writerWithDefaultPrettyPrinter().writeValue(sessionFile.toFile(), root);
+            AtomicFiles.write(sessionFile, root, mapper);
         } catch (Exception e) {
             log.error("Could not persist session to {}: {}", sessionFile, e.getMessage(), e);
         }

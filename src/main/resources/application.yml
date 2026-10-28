@@ -81,8 +81,12 @@ jozef:
     enabled: true
     tokens-file: data/google-tokens.json   # zapisane tokeny OAuth (git-ignored)
     calendar-id: primary
-    # client-id / client-secret czytane ze zmiennych środowiskowych:
-    #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+    credentials-file: data/google-credentials.json  # JSON pobrany z Google Cloud Console
+    authenticate-on-startup: true          # przy starcie otwórz logowanie Google w przeglądarce
+    # client-id / client-secret są czytane w kolejności:
+    #   1. GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (env)
+    #   2. pola client-id / client-secret poniżej (tylko dev, nie commitować)
+    #   3. credentials-file (JSON z Google Cloud Console)
 
   # ─── Security ─────────────────────────────────────
   security:

@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.0] - 2025-10-28
+
+### Added
+- Atomic JSON file writes (`AtomicFiles`): memory, plans, session and Google
+  tokens are now written via temp-file + atomic move, preventing corruption on
+  crash mid-write
+- Google credentials from file: `data/google-credentials.json` (the JSON
+  downloaded from Google Cloud Console) is now read as a fallback for OAuth
+  client id/secret — no secrets in code, no sharing of credentials
+- `jozef.google.authenticate-on-startup` (default true): when credentials are
+  present but there is no valid token, the browser login opens automatically at
+  startup on a background thread
+
+### Changed
+- `GoogleProperties` gained `credentials-file` and `authenticate-on-startup`
+- `GoogleCapability` prints step-by-step setup instructions when credentials
+  are missing
+
 ## [0.7.0] - 2025-10-28
 
 ### Security

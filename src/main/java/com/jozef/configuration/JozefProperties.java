@@ -37,7 +37,7 @@ public record JozefProperties(
         if (agent == null) agent = new AgentProperties(5, 30);
         if (persona == null) persona = new PersonaProperties("Jozef", "pl", "concise");
         if (browser == null) browser = new BrowserProperties(true, false, "chrome", null, null);
-        if (google == null) google = new GoogleProperties(true, null, null, "data/google-tokens.json", "primary");
+        if (google == null) google = new GoogleProperties(true, null, null, "data/google-tokens.json", "primary", "data/google-credentials.json", true);
         if (security == null) security = new SecurityProperties("console");
         if (tray == null) tray = new TrayProperties(true, false, "ctrl alt J");
         if (proactive == null) proactive = new ProactiveProperties(true, 5, 5, 15);

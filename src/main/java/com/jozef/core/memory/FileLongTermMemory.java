@@ -1,6 +1,7 @@
 package com.jozef.core.memory;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jozef.core.util.AtomicFiles;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -150,8 +151,7 @@ public class FileLongTermMemory implements LongTermMemory {
 
     private void persist() {
         try {
-            Files.createDirectories(path.toAbsolutePath().getParent());
-            mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), new ArrayList<>(entries.values()));
+            AtomicFiles.write(path, new ArrayList<>(entries.values()), mapper);
         } catch (IOException e) {
             log.error("Could not persist memory to {}: {}", path, e.getMessage(), e);
         }

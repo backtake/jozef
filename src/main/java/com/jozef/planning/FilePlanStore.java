@@ -1,6 +1,7 @@
 package com.jozef.planning;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jozef.core.util.AtomicFiles;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -74,8 +75,7 @@ public class FilePlanStore implements PlanStore {
 
     private void persist() {
         try {
-            Files.createDirectories(path.toAbsolutePath().getParent());
-            mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), new ArrayList<>(plans.values()));
+            AtomicFiles.write(path, new ArrayList<>(plans.values()), mapper);
         } catch (IOException e) {
             log.error("Could not persist plans to {}: {}", path, e.getMessage(), e);
         }
