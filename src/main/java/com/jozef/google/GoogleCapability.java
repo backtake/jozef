@@ -11,6 +11,7 @@ import com.jozef.core.tool.ToolParameters;
 import com.jozef.core.tool.ToolRegistry;
 import com.jozef.google.auth.GoogleAuthService;
 import com.jozef.google.auth.GoogleCredentialsFile;
+import com.jozef.google.auth.GoogleCredentialsSetup;
 import com.jozef.google.auth.GoogleTokenStore;
 import com.jozef.google.calendar.CalendarEvent;
 import com.jozef.google.calendar.GoogleCalendarService;
@@ -86,13 +87,31 @@ public class GoogleCapability implements Capability {
             }
         }
 
+        // First-run: no credentials anywhere → guide the user through setup.
         if (isBlank(clientId) || isBlank(clientSecret)) {
-            log.warn("Google capability skipped — brak danych logowania. Aby włączyć kalendarz i Gmaila:\n"
-                    + "  1. Wejdź na https://console.cloud.google.com/apis/credentials\n"
-                    + "  2. Utwórz projekt i dane logowania 'OAuth client ID' typu 'Desktop app'\n"
-                    + "  3. Pobierz plik JSON i zapisz go jako: " + props.credentialsFile() + "\n"
-                    + "     (albo ustaw zmienne środowiskowe GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)\n"
-                    + "  4. Uruchom Jozefa ponownie — otworzy okno logowania Google.");
+            if (props.authenticateOnStartup()) {
+                log.info("Brak danych logowania Google — uruchamiam konfigurację.\n"
+                        + "  1. W przeglądarce otworzy się Google Cloud Console.\n"
+                        + "  2. Utwórz projekt i dane logowania 'OAuth client ID' typu 'Desktop app'.\n"
+                        + "  3. Skopiuj client_id oraz client_secret i wklej je tutaj.");
+                GoogleCredentialsSetup.openConsoleInBrowser();
+                GoogleCredentialsFile setup = GoogleCredentialsSetup.promptInteractive();
+                if (setup != null) {
+                    GoogleCredentialsSetup.save(props.credentialsFile(), setup);
+                    clientId = setup.clientId();
+                    clientSecret = setup.clientSecret();
+                } else {
+                    log.warn("Konfiguracja Google pominięta. Wznowisz ją przy następnym uruchomieniu "
+                            + "(albo ręcznie zapisz plik {}).", props.credentialsFile());
+                }
+            } else {
+                log.warn("Google capability skipped — authenticate-on-startup jest wyłączone.");
+            }
+        }
+
+        if (isBlank(clientId) || isBlank(clientSecret)) {
+            log.warn("Google capability skipped — brak danych logowania. "
+                    + "Aby włączyć kalendarz i Gmaila, uruchom Jozefa w trybie interaktywnym.");
             return;
         }
 
@@ -104,16 +123,15 @@ public class GoogleCapability implements Capability {
         registerGmailTools();
 
         if (props.authenticateOnStartup()) {
-            Thread authThread = new Thread(() -> {
-                try {
-                    auth.accessToken();
-                    log.info("Google authentication ready.");
-                } catch (Exception e) {
-                    log.error("Google startup authentication failed: {}", e.getMessage(), e);
-                }
-            }, "google-startup-auth");
-            authThread.setDaemon(true);
-            authThread.start();
+            // Force the Google login at startup: block until the browser consent
+            // flow completes (or fails/cancels), then continue booting.
+            try {
+                auth.accessToken();
+                log.info("Google authentication ready.");
+            } catch (Exception e) {
+                log.error("Google startup authentication failed: {}", e.getMessage(), e);
+                log.warn("Jozef uruchomi się bez Kalendarza/Gmaila — zalogujesz się przy następnym starcie.");
+            }
         }
 
         log.info("Google capability initialized (calendar + gmail, {} tools total).", toolRegistry.size());

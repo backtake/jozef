@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0] - 2025-10-28
+
+### Added
+- Interactive first-run Google setup: when no credentials are configured,
+  Jozef opens the Google Cloud Console in the browser, prompts for
+  `client_id`/`client_secret`, saves them to `data/google-credentials.json`
+  and immediately continues to the OAuth login — no manual file juggling
+- Google login is now forced at startup (synchronous, on the main thread): if
+  credentials are present but there is no valid token, the browser consent
+  flow opens and startup waits for it (with graceful degradation on cancel)
+- `GoogleCredentialsSetup` helper (prompt + save + open console)
+
 ## [0.8.0] - 2025-10-28
 
 ### Added

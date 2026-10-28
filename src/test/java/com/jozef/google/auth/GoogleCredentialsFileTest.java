@@ -67,4 +67,16 @@ class GoogleCredentialsFileTest {
         Path garbage = write("not json");
         assertThat(GoogleCredentialsFile.load(garbage.toString())).isNull();
     }
+
+    @Test
+    void savedCredentialsRoundTrip() {
+        Path file = tempDir.resolve("saved.json");
+        GoogleCredentialsSetup.save(file.toString(), new GoogleCredentialsFile("id-x", "secret-x"));
+
+        GoogleCredentialsFile loaded = GoogleCredentialsFile.load(file.toString());
+
+        assertThat(loaded).isNotNull();
+        assertThat(loaded.clientId()).isEqualTo("id-x");
+        assertThat(loaded.clientSecret()).isEqualTo("secret-x");
+    }
 }
