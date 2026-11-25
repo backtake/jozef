@@ -5,12 +5,17 @@ import com.jozef.configuration.WakeWordProperties;
 import com.jozef.core.capabilities.Capability;
 import com.jozef.speech.console.ConsoleInputRecognizer;
 import com.jozef.speech.console.ConsoleSpeechSynthesizer;
-import com.jozef.speech.tts.EdgeTtsSynthesizer;
+import com.jozef.speech.tts.FallbackSpeechSynthesizer;
+import com.jozef.speech.tts.OpenAiSpeechSynthesizer;
 import com.jozef.speech.tts.WindowsSpeechSynthesizer;
 import com.jozef.speech.vosk.VoskModelManager;
 import com.jozef.speech.vosk.VoskSpeechRecognizer;
 import com.jozef.speech.vosk.VoskWakeWordDetector;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
 
 /**
  * Provides {@link SpeechRecognizer} (STT) and {@link SpeechSynthesizer} (TTS)
@@ -30,7 +35,14 @@ public class SpeechCapability implements Capability {
     private final SpeechSynthesizer synthesizer;
     private final WakeWordDetector wakeWordDetector;
 
+    private final Function<String, String> env;
+
     public SpeechCapability(SpeechProperties props, WakeWordProperties wakeWord) {
+        this(props, wakeWord, System::getenv);
+    }
+
+    SpeechCapability(SpeechProperties props, WakeWordProperties wakeWord, Function<String, String> env) {
+        this.env = env;
         this.recognizer = createRecognizer(props);
         this.synthesizer = createSynthesizer(props);
         this.wakeWordDetector = createWakeWordDetector(props, wakeWord);
@@ -91,13 +103,50 @@ public class SpeechCapability implements Capability {
     private SpeechSynthesizer createSynthesizer(SpeechProperties props) {
         String provider = (props != null && props.tts() != null && props.tts().provider() != null)
                 ? props.tts().provider().toLowerCase()
-                : "edge";
+                : "auto";
         String voice = (props != null && props.tts() != null) ? props.tts().voice() : null;
-        return switch (provider) {
-            case "edge" -> new EdgeTtsSynthesizer(voice);
-            case "windows" -> new WindowsSpeechSynthesizer();
-            default -> new ConsoleSpeechSynthesizer();
-        };
+        String openAiKey = env.apply("OPENAI_API_KEY");
+        boolean hasOpenAi = openAiKey != null && !openAiKey.isBlank();
+
+        // Every chain ends with offline Windows TTS (and the console as the last resort),
+        // so a network/billing problem never leaves Jozef mute.
+        List<SpeechSynthesizer> chain = new ArrayList<>();
+        switch (provider) {
+            case "console" -> {
+                return new ConsoleSpeechSynthesizer();
+            }
+            case "windows" -> chain.add(new WindowsSpeechSynthesizer());
+            case "openai" -> {
+                if (hasOpenAi) {
+                    chain.add(new OpenAiSpeechSynthesizer(openAiKey, voice));
+                } else {
+                    log.warn("TTS 'openai' needs OPENAI_API_KEY — using Windows voice.");
+                }
+                chain.add(new WindowsSpeechSynthesizer());
+            }
+            default -> {
+                if ("edge".equals(provider)) {
+                    log.warn("TTS 'edge' is no longer available (Microsoft locked the unofficial endpoint) — using 'auto'.");
+                } else if (!"auto".equals(provider)) {
+                    log.warn("Unknown TTS provider '{}' — using 'auto'.", provider);
+                }
+                if (hasOpenAi) {
+                    chain.add(new OpenAiSpeechSynthesizer(openAiKey, voice));
+                }
+                chain.add(new WindowsSpeechSynthesizer());
+            }
+        }
+        if (!isWindows()) {
+            chain.removeIf(s -> s instanceof WindowsSpeechSynthesizer);
+        }
+        if (chain.isEmpty()) {
+            return new ConsoleSpeechSynthesizer();
+        }
+        return chain.size() == 1 ? chain.get(0) : new FallbackSpeechSynthesizer(chain);
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase().contains("win");
     }
 
     public SpeechRecognizer recognizer() {

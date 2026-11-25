@@ -14,6 +14,7 @@ import com.jozef.core.events.EventBus;
 import com.jozef.core.events.EventListener;
 import com.jozef.core.security.AutoDenyConfirmationService;
 import com.jozef.core.security.ConfirmationService;
+import com.jozef.core.security.ConversationalConfirmationService;
 import com.jozef.core.security.PermissionManager;
 import com.jozef.core.session.SessionManager;
 import com.jozef.core.tool.ToolRegistry;
@@ -170,6 +171,184 @@ class AgentRuntimeTest {
         agent.process("hello");
 
         assertThat(llm.lastRequest().systemPrompt()).contains("CONTEXT_MARKER");
+    }
+
+    // ─── Conversational confirmation ────────────────────────────
+
+    private static class CountingConfirmAction implements Action {
+        int executions;
+        @Override public String name() { return "send_email"; }
+        @Override public String description() { return "Send an email"; }
+        @Override public ExecutionStrategy strategy() { return ExecutionStrategy.CONFIRM; }
+        @Override public ActionResult execute(ActionContext context) {
+            executions++;
+            return ActionResult.ok("sent to " + context.getString("to"));
+        }
+    }
+
+    @Test
+    void riskyToolIsParkedUntilUserSaysYes() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("c1", "send_email", Map.of("to", "ania@example.com")))));
+        llm.enqueue(new ChatResponse("Mam wysłać maila do Ani?", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+
+        AgentResult ask = agent.process("wyślij Ani maila");
+        assertThat(ask.text()).isEqualTo("Mam wysłać maila do Ani?");
+        assertThat(send.executions).isZero();
+        assertThat(agent.hasPendingConfirmation()).isTrue();
+        assertThat(llm.lastRequest().messages().get(2).content()).contains("NOT EXECUTED YET");
+
+        llm.enqueue(new ChatResponse("Wysłane.", List.of()));
+        AgentResult done = agent.process("Tak, wyślij");
+
+        assertThat(send.executions).isEqualTo(1);
+        assertThat(done.text()).isEqualTo("Wysłane.");
+        assertThat(done.toolExecutions()).singleElement().satisfies(e -> {
+            assertThat(e.success()).isTrue();
+            assertThat(e.message()).isEqualTo("sent to ania@example.com");
+        });
+        assertThat(agent.hasPendingConfirmation()).isFalse();
+        // The model sees the approved call and its result, correlated by id.
+        var sent = llm.lastRequest().messages();
+        assertThat(sent.get(sent.size() - 1).toolCallId()).isEqualTo("c1");
+    }
+
+    @Test
+    void userCanCancelParkedTool() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "x")))));
+        llm.enqueue(new ChatResponse("Wysłać?", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+        agent.process("wyślij maila");
+
+        AgentResult result = agent.process("nie");
+
+        assertThat(send.executions).isZero();
+        assertThat(result.text()).isEqualTo(AgentRuntime.CANCELLED);
+        assertThat(agent.hasPendingConfirmation()).isFalse();
+    }
+
+    @Test
+    void unrelatedReplyDropsParkedToolAndIsHandledNormally() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "x")))));
+        llm.enqueue(new ChatResponse("Wysłać?", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+        agent.process("wyślij maila");
+
+        llm.enqueue(new ChatResponse("Jest 12:00.", List.of()));
+        AgentResult result = agent.process("która godzina");
+
+        assertThat(send.executions).isZero();
+        assertThat(result.text()).isEqualTo("Jest 12:00.");
+        // A later "tak" must not resurrect the dropped action.
+        llm.enqueue(new ChatResponse("Na co tak?", List.of()));
+        agent.process("tak");
+        assertThat(send.executions).isZero();
+    }
+
+    @Test
+    void modelCannotApproveItsOwnActionByCallingTheToolTwice() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "x")))));
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "x")))));
+        llm.enqueue(new ChatResponse("Wysłać?", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+        agent.process("wyślij maila");
+
+        assertThat(send.executions).isZero();
+    }
+
+    // ─── Robustness ──────────────────────────────────────────────
+
+    @Test
+    void llmFailureGivesFriendlyMessageNotTheRawError() {
+        LLMProvider broken = new LLMProvider() {
+            @Override public String name() { return "broken"; }
+            @Override public ChatResponse chat(ChatRequest request) {
+                throw new com.jozef.llm.LlmException("openai returned HTTP 401: invalid key", 401, null);
+            }
+        };
+        AgentRuntime agent = new AgentRuntime(broken, new ToolRegistry(), () -> "sys", new RecordingEventBus(),
+                new SessionManager(tempDir.resolve("s.json").toString()), new PermissionManager(),
+                new AutoDenyConfirmationService(), new AgentProperties(5, 30),
+                new LlmProperties("x", "m", null, null, 0.7, 100, null), null, new MemoryProperties(50, 10, null, null));
+
+        AgentResult result = agent.process("cześć");
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.text()).isEqualTo(AgentRuntime.LLM_UNAVAILABLE).doesNotContain("401");
+    }
+
+    @Test
+    void hangingToolTimesOutAndLoopContinues() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(new Action() {
+            @Override public String name() { return "slow"; }
+            @Override public String description() { return "never returns"; }
+            @Override public ActionResult execute(ActionContext context) {
+                try { Thread.sleep(60_000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                return ActionResult.ok("late");
+            }
+        });
+        tools.register(echoAction());
+
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("slow", Map.of()))));
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("echo", Map.of("value", "after")))));
+        llm.enqueue(new ChatResponse("Nie zdążyłem", List.of()));
+
+        AgentRuntime agent = new AgentRuntime(llm, tools, () -> "sys", new RecordingEventBus(),
+                new SessionManager(tempDir.resolve("s.json").toString()), new PermissionManager(),
+                new AutoDenyConfirmationService(), new AgentProperties(5, 1),
+                new LlmProperties("x", "m", null, null, 0.7, 100, null), null, new MemoryProperties(50, 10, null, null));
+
+        long start = System.currentTimeMillis();
+        AgentResult result = agent.process("zrób coś wolnego");
+
+        assertThat(System.currentTimeMillis() - start).isLessThan(10_000);
+        assertThat(result.toolExecutions().get(0).success()).isFalse();
+        assertThat(result.toolExecutions().get(0).message()).contains("timed out");
+        // A fresh tool thread still serves later tools.
+        assertThat(result.toolExecutions().get(1).message()).isEqualTo("echoed: after");
+        agent.close();
+    }
+
+    @Test
+    void lastStepWithholdsToolsSoTheModelMustAnswer() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(echoAction());
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("echo", Map.of("value", "1")))));
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("echo", Map.of("value", "2")))));
+        llm.enqueue(new ChatResponse("Podsumowanie", List.of()));
+
+        AgentRuntime agent = new AgentRuntime(llm, tools, () -> "sys", new RecordingEventBus(),
+                new SessionManager(tempDir.resolve("s.json").toString()), new PermissionManager(),
+                new AutoDenyConfirmationService(), new AgentProperties(2, 30),
+                new LlmProperties("x", "m", null, null, 0.7, 100, null), null, new MemoryProperties(50, 10, null, null));
+
+        AgentResult result = agent.process("rób w kółko");
+
+        assertThat(result.text()).isEqualTo("Podsumowanie");
+        assertThat(llm.lastRequest().tools()).isEmpty();
     }
 
     private AgentRuntime agentWith(FakeLlm llm, ToolRegistry tools, ConfirmationService confirmation) {

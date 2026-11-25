@@ -25,6 +25,29 @@ class SpeechCapabilityTest {
     }
 
     @Test
+    void autoTtsPrefersOpenAiWhenKeyPresentAndKeepsOfflineFallback() {
+        SpeechProperties props = new SpeechProperties(
+                new SpeechProperties.SttProperties("console", null, false),
+                new SpeechProperties.TtsProperties("auto", "ash"), null);
+
+        SpeechCapability capability = new SpeechCapability(props, new WakeWordProperties(false, "x"),
+                name -> "OPENAI_API_KEY".equals(name) ? "sk-test" : null);
+
+        assertThat(capability.synthesizer().name()).startsWith("openai");
+    }
+
+    @Test
+    void legacyEdgeProviderDegradesToAutoInsteadOfBreaking() {
+        SpeechProperties props = new SpeechProperties(
+                new SpeechProperties.SttProperties("console", null, false),
+                new SpeechProperties.TtsProperties("edge", "pl-PL-ZofiaNeural"), null);
+
+        SpeechCapability capability = new SpeechCapability(props, new WakeWordProperties(false, "x"), name -> null);
+
+        assertThat(capability.synthesizer().name()).doesNotContain("edge");
+    }
+
+    @Test
     void disablesWakeWordWhenSttIsConsole() {
         SpeechProperties props = new SpeechProperties(
                 new SpeechProperties.SttProperties("console", null, false), null, null);

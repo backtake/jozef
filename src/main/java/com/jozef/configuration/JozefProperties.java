@@ -38,7 +38,7 @@ public record JozefProperties(
         if (persona == null) persona = new PersonaProperties("Jozef", "pl", "concise");
         if (browser == null) browser = new BrowserProperties(true, false, "chrome", null, null);
         if (google == null) google = new GoogleProperties(true, null, null, "data/google-tokens.json", "primary", "data/google-credentials.json", true);
-        if (security == null) security = new SecurityProperties("console");
+        if (security == null) security = new SecurityProperties("conversation");
         if (tray == null) tray = new TrayProperties(true, false, "ctrl alt J");
         if (proactive == null) proactive = new ProactiveProperties(true, 5, 5, 15);
         if (planning == null) planning = new PlanningProperties(true, 3, "data/plans.json");

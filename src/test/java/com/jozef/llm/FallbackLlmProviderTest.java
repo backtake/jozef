@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FallbackLlmProviderTest {
 
@@ -17,41 +18,52 @@ class FallbackLlmProviderTest {
         };
     }
 
-    @Test
-    void usesPrimaryWhenItSucceeds() {
-        LLMProvider primary = provider("primary", "ok");
-        LLMProvider fallback = provider("fallback", "fallback answer");
-        FallbackLlmProvider wrapped = new FallbackLlmProvider(primary, fallback);
-
-        ChatResponse response = wrapped.chat(new ChatRequest(null, List.of(), List.of(), 0.7, 100));
-
-        assertThat(response.content()).isEqualTo("ok");
-    }
-
-    @Test
-    void fallsBackWhenPrimaryReturnsError() {
-        LLMProvider primary = provider("primary", "Error: connection refused");
-        LLMProvider fallback = provider("fallback", "fallback answer");
-        FallbackLlmProvider wrapped = new FallbackLlmProvider(primary, fallback);
-
-        ChatResponse response = wrapped.chat(new ChatRequest(null, List.of(), List.of(), 0.7, 100));
-
-        assertThat(response.content()).isEqualTo("fallback answer");
-    }
-
-    @Test
-    void fallsBackWhenPrimaryThrows() {
-        LLMProvider primary = new LLMProvider() {
-            @Override public String name() { return "primary"; }
+    private static LLMProvider failing(String name) {
+        return new LLMProvider() {
+            @Override public String name() { return name; }
             @Override public ChatResponse chat(ChatRequest request) {
-                throw new IllegalStateException("boom");
+                throw new LlmException(name + " returned HTTP 503", 503, null);
             }
         };
-        LLMProvider fallback = provider("fallback", "fallback answer");
-        FallbackLlmProvider wrapped = new FallbackLlmProvider(primary, fallback);
+    }
 
-        ChatResponse response = wrapped.chat(new ChatRequest(null, List.of(), List.of(), 0.7, 100));
+    private static ChatRequest request() {
+        return new ChatRequest(null, List.of(), List.of(), 0.7, 100);
+    }
 
-        assertThat(response.content()).isEqualTo("fallback answer");
+    @Test
+    void usesPrimaryWhenItSucceeds() {
+        FallbackLlmProvider wrapped = new FallbackLlmProvider(provider("primary", "ok"), provider("fallback", "fb"));
+        assertThat(wrapped.chat(request()).content()).isEqualTo("ok");
+    }
+
+    @Test
+    void primaryAnswerThatMerelyMentionsAnErrorIsNotTreatedAsFailure() {
+        // Content is the model's answer — only exceptions signal provider failure.
+        FallbackLlmProvider wrapped = new FallbackLlmProvider(
+                provider("primary", "Error: to słowo po angielsku znaczy błąd"), provider("fallback", "fb"));
+        assertThat(wrapped.chat(request()).content()).startsWith("Error:");
+    }
+
+    @Test
+    void fallsBackWhenPrimaryThrowsLlmException() {
+        FallbackLlmProvider wrapped = new FallbackLlmProvider(failing("primary"), provider("fallback", "fallback answer"));
+        assertThat(wrapped.chat(request()).content()).isEqualTo("fallback answer");
+    }
+
+    @Test
+    void fallsBackWhenPrimaryThrowsAnything() {
+        LLMProvider primary = new LLMProvider() {
+            @Override public String name() { return "primary"; }
+            @Override public ChatResponse chat(ChatRequest request) { throw new IllegalStateException("boom"); }
+        };
+        FallbackLlmProvider wrapped = new FallbackLlmProvider(primary, provider("fallback", "fallback answer"));
+        assertThat(wrapped.chat(request()).content()).isEqualTo("fallback answer");
+    }
+
+    @Test
+    void propagatesWhenBothFail() {
+        FallbackLlmProvider wrapped = new FallbackLlmProvider(failing("primary"), failing("fallback"));
+        assertThatThrownBy(() -> wrapped.chat(request())).isInstanceOf(LlmException.class);
     }
 }

@@ -6,6 +6,8 @@ import com.jozef.llm.ollama.OllamaProvider;
 import com.jozef.llm.openai.OpenAiLlmProvider;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
+
 /**
  * Provides the LLMProvider implementation based on configuration.
  *
@@ -42,30 +44,26 @@ public class LLMCapability implements Capability {
 
     private LLMProvider buildProvider(String providerName, String model, String endpoint, String apiKeyEnv) {
         String name = providerName == null || providerName.isBlank() ? "ollama" : providerName.toLowerCase();
+        Duration timeout = Duration.ofSeconds(props.timeoutSeconds() > 0 ? props.timeoutSeconds() : LlmProperties.DEFAULT_TIMEOUT_SECONDS);
 
         return switch (name) {
             case "ollama" -> new OllamaProvider(
                     defaultIfBlank(model, "llama3.2"),
-                    defaultIfBlank(endpoint, "http://localhost:11434"));
-            case "openai" -> {
-                String apiKey = resolveApiKey(apiKeyEnv, "OPENAI_API_KEY");
-                yield new OpenAiLlmProvider(
-                        defaultIfBlank(model, "gpt-4o-mini"),
-                        apiKey,
-                        defaultIfBlank(endpoint, "https://api.openai.com/v1/chat/completions"));
-            }
-            case "deepseek" -> {
-                // DeepSeek exposes an OpenAI-compatible API (Bearer auth).
-                String apiKey = resolveApiKey(apiKeyEnv, "DEEPSEEK_API_KEY");
-                yield new OpenAiLlmProvider(
-                        defaultIfBlank(model, "deepseek-chat"),
-                        apiKey,
-                        defaultIfBlank(endpoint, "https://api.deepseek.com/v1/chat/completions"));
-            }
-            case "anthropic", "gemini" ->
-                    throw new IllegalArgumentException(
-                            "LLM provider '" + name + "' is not implemented yet. "
-                                    + "Supported: ollama, openai, deepseek.");
+                    defaultIfBlank(endpoint, "http://localhost:11434"),
+                    timeout);
+            case "openai" -> new OpenAiLlmProvider("openai",
+                    defaultIfBlank(model, "gpt-4o-mini"),
+                    resolveApiKey(apiKeyEnv, "OPENAI_API_KEY"),
+                    defaultIfBlank(endpoint, OpenAiLlmProvider.DEFAULT_ENDPOINT),
+                    timeout);
+            // DeepSeek exposes an OpenAI-compatible API (Bearer auth).
+            case "deepseek" -> new OpenAiLlmProvider("deepseek",
+                    defaultIfBlank(model, "deepseek-chat"),
+                    resolveApiKey(apiKeyEnv, "DEEPSEEK_API_KEY"),
+                    defaultIfBlank(endpoint, "https://api.deepseek.com/v1/chat/completions"),
+                    timeout);
+            case "gemini" -> throw new IllegalArgumentException(
+                    "LLM provider gemini is not implemented yet. Supported: ollama, openai, deepseek.");
             default -> throw new IllegalArgumentException("Unknown LLM provider: " + name);
         };
     }

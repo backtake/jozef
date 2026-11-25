@@ -27,6 +27,7 @@ import com.jozef.core.plugins.PluginLoader;
 import com.jozef.core.security.AutoDenyConfirmationService;
 import com.jozef.core.security.ConfirmationService;
 import com.jozef.core.security.ConsoleConfirmationService;
+import com.jozef.core.security.ConversationalConfirmationService;
 import com.jozef.core.security.PermissionManager;
 import com.jozef.core.session.SessionManager;
 import com.jozef.core.tool.ToolRegistry;
@@ -112,17 +113,18 @@ public class CoreConfiguration {
 
     @Bean
     public ConfirmationService confirmationService(JozefProperties props) {
-        // Fail-safe default: deny CONFIRM/DANGEROUS unless an interactive
-        // confirmation UI (console/overlay) is configured.
+        // Default: confirm in the conversation itself ("Mam wysłać? — Tak") — works
+        // for voice, the command window and the phone; a background app has no console.
         String provider = props.security() != null && props.security().confirmationProvider() != null
                 ? props.security().confirmationProvider().toLowerCase()
-                : "console";
+                : "conversation";
         return switch (provider) {
+            case "conversation" -> new ConversationalConfirmationService();
             case "auto-deny" -> new AutoDenyConfirmationService();
             case "console" -> new ConsoleConfirmationService();
             default -> {
-                log.warn("Unknown confirmation provider '{}' — falling back to console.", provider);
-                yield new ConsoleConfirmationService();
+                log.warn("Unknown confirmation provider '{}' — using conversation.", provider);
+                yield new ConversationalConfirmationService();
             }
         };
     }

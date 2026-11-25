@@ -44,8 +44,8 @@ jozef:
       model: data/vosk-model-small-pl-0.22   # ścieżka do rozpakowanego modelu Vosk
       auto-download: true         # pobierz i zainstaluj model automatycznie przy starcie
     tts:
-      provider: edge              # edge | windows | console | elevenlabs | azure
-      voice: pl-PL-ZofiaNeural    # pl-PL-ZofiaNeural | pl-PL-MarekNeural (darmowe neuralne)
+      provider: auto              # auto (OpenAI gdy jest OPENAI_API_KEY, inaczej Windows) | openai | windows | console
+      voice: ash                  # głos OpenAI: ash | onyx | nova | coral | sage | alloy …
     vad:
       enabled: true
       sensitivity: medium          # low | medium | high
@@ -90,7 +90,7 @@ jozef:
 
   # ─── Security ─────────────────────────────────────
   security:
-    confirmation-provider: console # console | auto-deny
+    confirmation-provider: conversation # conversation (tak/nie w rozmowie) | console | auto-deny
 
   # ─── Plugins ────────────────────────────────────────
   plugins:

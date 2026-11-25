@@ -5,15 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jozef.llm.ChatMessage;
 import com.jozef.llm.ChatRequest;
 import com.jozef.llm.ChatResponse;
+import com.jozef.configuration.LlmProperties;
 import com.jozef.llm.LLMProvider;
+import com.jozef.llm.LlmException;
+import com.jozef.llm.LlmHttp;
 import com.jozef.llm.ToolCall;
 import com.jozef.llm.ToolSchema;
 import lombok.extern.slf4j.Slf4j;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,14 +30,17 @@ public class OllamaProvider implements LLMProvider {
 
     private final String model;
     private final String baseUrl;
-    private final ObjectMapper mapper;
-    private final HttpClient httpClient;
+    private final ObjectMapper mapper = new ObjectMapper();
+    private final LlmHttp http;
 
     public OllamaProvider(String model, String baseUrl) {
+        this(model, baseUrl, Duration.ofSeconds(LlmProperties.DEFAULT_TIMEOUT_SECONDS));
+    }
+
+    public OllamaProvider(String model, String baseUrl, Duration timeout) {
         this.model = model;
         this.baseUrl = baseUrl == null || baseUrl.isBlank() ? "http://localhost:11434" : baseUrl;
-        this.mapper = new ObjectMapper();
-        this.httpClient = HttpClient.newHttpClient();
+        this.http = new LlmHttp("ollama", timeout);
     }
 
     public OllamaProvider(String model) {
@@ -51,32 +54,23 @@ public class OllamaProvider implements LLMProvider {
 
     @Override
     public ChatResponse chat(ChatRequest request) {
+        String json;
         try {
-            Map<String, Object> body = buildRequestBody(request);
-            String json = mapper.writeValueAsString(body);
-
-            log.debug("Ollama request: model={}, messages={}, tools={}",
-                    model, request.messages().size(),
-                    request.tools() != null ? request.tools().size() : 0);
-
-            HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(baseUrl + "/api/chat"))
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(json))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() != 200) {
-                log.error("Ollama returned {}: {}", response.statusCode(), response.body());
-                return new ChatResponse("Error: Ollama returned " + response.statusCode(), List.of());
-            }
-
-            return parseResponse(response.body());
-
+            json = mapper.writeValueAsString(buildRequestBody(request));
         } catch (Exception e) {
-            log.error("Ollama request failed", e);
-            return new ChatResponse("Error: " + e.getMessage(), List.of());
+            throw new LlmException("ollama: cannot serialize request", e);
+        }
+        log.debug("Ollama request: model={}, messages={}, tools={}",
+                model, request.messages().size(),
+                request.tools() != null ? request.tools().size() : 0);
+
+        String body = http.postJson(baseUrl + "/api/chat", Map.of(), json);
+        try {
+            return parseResponse(body);
+        } catch (LlmException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new LlmException("ollama: unparsable response", e);
         }
     }
 
@@ -162,10 +156,10 @@ public class OllamaProvider implements LLMProvider {
 
         Map<String, Object> message = (Map<String, Object>) json.get("message");
         if (message == null) {
-            return new ChatResponse("No message in response", List.of());
+            throw new LlmException("ollama: response has no message");
         }
 
-        String content = (String) message.get("content");
+        String content = message.get("content") instanceof String s ? s : "";
 
         List<ToolCall> toolCalls = new ArrayList<>();
         Object rawToolCalls = message.get("tool_calls");
