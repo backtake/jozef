@@ -30,6 +30,8 @@ public class ShortcutStore {
             .enable(YAMLGenerator.Feature.MINIMIZE_QUOTES))
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final List<Shortcut> shortcuts = new ArrayList<>();
+    private boolean loadFailed;
+    private long loadedAt = -1;
 
     public ShortcutStore(String file) {
         this.file = Path.of(file == null || file.isBlank() ? "data/shortcuts.yml" : file);
@@ -41,6 +43,7 @@ public class ShortcutStore {
 
     private synchronized void load() {
         shortcuts.clear();
+        loadFailed = false;
         if (!Files.exists(file)) {
             shortcuts.addAll(defaults());
             save();
@@ -57,8 +60,10 @@ public class ShortcutStore {
             log.info("Loaded {} shortcuts from {}", shortcuts.size(), file);
         } catch (Exception e) {
             // Never overwrite a file the user may have hand-edited with a typo.
+            loadFailed = true;
             log.warn("Cannot read {} ({}) — shortcuts disabled until the file is fixed.", file, e.getMessage());
         }
+        loadedAt = lastModified();
     }
 
     public synchronized void reload() {
@@ -68,17 +73,53 @@ public class ShortcutStore {
     private synchronized void save() {
         try {
             AtomicFiles.write(file, new FileModel(List.copyOf(shortcuts)), yaml);
+            loadedAt = lastModified();
         } catch (Exception e) {
             log.warn("Cannot save shortcuts to {}: {}", file, e.getMessage());
         }
     }
 
+    private long lastModified() {
+        try {
+            return Files.exists(file) ? Files.getLastModifiedTime(file).toMillis() : -1;
+        } catch (Exception e) {
+            return -1;
+        }
+    }
+
+    private void requireWritable() {
+        if (loadFailed) {
+            throw new IllegalStateException("The shortcuts file " + file
+                    + " has a syntax error — fix it first (tray → Edytuj skróty); nothing was changed.");
+        }
+    }
+
+    public Path file() {
+        return file;
+    }
+
     public synchronized List<Shortcut> all() {
+        reloadIfEdited();
         return List.copyOf(shortcuts);
+    }
+
+    /** Picks up hand edits (tray → "Edytuj skróty") without a restart. */
+    private void reloadIfEdited() {
+        try {
+            if (Files.exists(file)) {
+                long modified = Files.getLastModifiedTime(file).toMillis();
+                if (modified != loadedAt) {
+                    load();
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Cannot check {}: {}", file, e.getMessage());
+        }
     }
 
     /** Finds a shortcut by its name or any alias (case/diacritics-insensitive). */
     public synchronized Optional<Shortcut> find(String spoken) {
+        reloadIfEdited();
         String q = TextNormalizer.normalize(spoken);
         if (q.isEmpty()) return Optional.empty();
         for (Shortcut s : shortcuts) {
@@ -98,7 +139,7 @@ public class ShortcutStore {
     static String stem(String normalized) {
         StringBuilder sb = new StringBuilder();
         for (String word : normalized.split(" ")) {
-            String w = word.length() > 3 ? word.replaceAll("[aeiouy]+$", "") : word;
+            String w = word.length() >= 3 ? word.replaceAll("[aeiouy]+$", "") : word;
             if (sb.length() > 0) sb.append(' ');
             sb.append(w);
         }
@@ -107,6 +148,7 @@ public class ShortcutStore {
 
     /** Adds or replaces (same name) a shortcut and persists the file. */
     public synchronized Shortcut put(Shortcut shortcut) {
+        requireWritable();
         String key = TextNormalizer.normalize(shortcut.name());
         shortcuts.removeIf(s -> TextNormalizer.normalize(s.name()).equals(key));
         shortcuts.add(shortcut);
@@ -115,6 +157,7 @@ public class ShortcutStore {
     }
 
     public synchronized boolean remove(String spoken) {
+        requireWritable();
         Optional<Shortcut> found = find(spoken);
         found.ifPresent(s -> {
             shortcuts.remove(s);

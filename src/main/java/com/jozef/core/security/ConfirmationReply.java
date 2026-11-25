@@ -60,11 +60,32 @@ public final class ConfirmationReply {
         }
         if (words.length > MAX_WORDS) return Kind.OTHER;
 
+        // "tak, wyślij do Basi" must not approve sending to Ania: after the affirmative only
+        // filler (or the parked tool's own verb) may follow — anything else is a correction.
         for (String start : YES_STARTS) {
-            if (n.equals(start) || n.startsWith(start + " ")) return Kind.YES;
+            if (n.equals(start) || n.startsWith(start + " ")) {
+                String rest = n.substring(start.length()).trim();
+                return onlyFiller(rest, pendingTools) ? Kind.YES : Kind.OTHER;
+            }
         }
-        if (words.length <= 3 && matchesActionVerb(words[0], pendingTools)) return Kind.YES;
+        if (matchesActionVerb(words[0], pendingTools)
+                && onlyFiller(n.substring(words[0].length()).trim(), pendingTools)) {
+            return Kind.YES;
+        }
         return Kind.OTHER;
+    }
+
+    private static final Set<String> FILLER = Set.of(
+            "tak", "jasne", "oczywiscie", "pewnie", "potwierdzam", "prosze", "dziekuje", "dzieki", "jest",
+            "to", "go", "ja", "ok", "okej", "dobrze", "dobra", "smialo", "mozesz", "dawaj", "zrob", "rob",
+            "jak", "najbardziej", "bardzo", "teraz", "juz", "please", "yes", "sure");
+
+    private static boolean onlyFiller(String rest, Collection<String> pendingTools) {
+        if (rest.isEmpty()) return true;
+        for (String w : rest.split(" ")) {
+            if (!FILLER.contains(w) && !matchesActionVerb(w, pendingTools)) return false;
+        }
+        return true;
     }
 
     private static boolean matchesActionVerb(String verb, Collection<String> tools) {

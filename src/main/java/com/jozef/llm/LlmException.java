@@ -28,4 +28,27 @@ public class LlmException extends RuntimeException {
     public int statusCode() {
         return statusCode;
     }
+
+    /**
+     * The account cannot be used at all — invalid key (401/403) or no credits /
+     * exhausted quota (OpenAI answers 429 with "insufficient_quota"). Retrying soon is pointless.
+     */
+    public boolean isAccountProblem() {
+        if (statusCode == 401 || statusCode == 403 || statusCode == 402) return true;
+        String m = getMessage() == null ? "" : getMessage().toLowerCase();
+        return statusCode == 429 && (m.contains("insufficient_quota") || m.contains("credit")
+                || m.contains("billing") || m.contains("quota"));
+    }
+
+    /** A short Polish explanation for the user, or {@code null} when nothing useful can be said. */
+    public String userHint() {
+        if (statusCode == 401 || statusCode == 403) return "klucz API jest nieprawidłowy albo wygasł";
+        if (isAccountProblem()) return "na koncie dostawcy modelu skończyły się środki";
+        if (statusCode == 429) return "dostawca modelu ogranicza teraz liczbę zapytań";
+        if (statusCode >= 500) return "serwer dostawcy modelu ma awarię";
+        String m = getMessage() == null ? "" : getMessage().toLowerCase();
+        if (m.contains("timed out")) return "model odpowiada zbyt długo";
+        if (m.contains("unreachable")) return "nie ma połączenia z modelem (internet albo lokalna Ollama nie działa)";
+        return null;
+    }
 }

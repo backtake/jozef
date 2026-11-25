@@ -6,7 +6,7 @@ import com.jozef.speech.mic.MicrophoneAudioSource;
 import com.jozef.speech.vad.EnergyVoiceActivityDetector;
 import com.jozef.speech.vad.VoiceActivityDetector;
 import lombok.extern.slf4j.Slf4j;
-import org.vosk.Model;
+
 import org.vosk.Recognizer;
 
 import java.nio.file.Files;
@@ -30,6 +30,7 @@ public class VoskSpeechRecognizer implements SpeechRecognizer {
 
     private final String modelPath;
     private final VadProperties vad;
+    private volatile boolean interrupted;
 
     public VoskSpeechRecognizer(String modelPath, VadProperties vad) {
         this.modelPath = modelPath;
@@ -47,15 +48,19 @@ public class VoskSpeechRecognizer implements SpeechRecognizer {
     }
 
     @Override
+    public void interrupt() {
+        interrupted = true;
+    }
+
+    @Override
     public String name() {
         return "vosk";
     }
 
     @Override
     public String listen() {
-        VoskNativeLibrary.prepare();
-        try (Model model = new Model(modelPath);
-             Recognizer recognizer = new Recognizer(model, SAMPLE_RATE);
+        interrupted = false;
+        try (Recognizer recognizer = new Recognizer(VoskModels.get(modelPath), SAMPLE_RATE);
              MicrophoneAudioSource mic = new MicrophoneAudioSource()) {
 
             mic.open();
@@ -64,7 +69,7 @@ public class VoskSpeechRecognizer implements SpeechRecognizer {
             List<String> finals = new ArrayList<>();
             long deadline = System.currentTimeMillis() + MAX_LISTEN_MILLIS;
 
-            while (System.currentTimeMillis() < deadline) {
+            while (System.currentTimeMillis() < deadline && !interrupted) {
                 int read = mic.read(buffer);
                 if (read <= 0) {
                     continue;

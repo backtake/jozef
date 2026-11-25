@@ -36,6 +36,7 @@ public class SpeechCapability implements Capability {
     private final WakeWordDetector wakeWordDetector;
 
     private final Function<String, String> env;
+    private final SpeakingMonitor speakingMonitor = new SpeakingMonitor();
     private final String llmProvider;
 
     public SpeechCapability(SpeechProperties props, WakeWordProperties wakeWord) {
@@ -55,7 +56,7 @@ public class SpeechCapability implements Capability {
         this.env = env;
         this.llmProvider = llmProvider;
         this.recognizer = createRecognizer(props);
-        this.synthesizer = createSynthesizer(props);
+        this.synthesizer = speakingMonitor.guard(createSynthesizer(props));
         this.wakeWordDetector = createWakeWordDetector(props, wakeWord);
     }
 
@@ -164,6 +165,10 @@ public class SpeechCapability implements Capability {
 
     public SpeechRecognizer recognizer() {
         return recognizer;
+    }
+
+    public SpeakingMonitor speakingMonitor() {
+        return speakingMonitor;
     }
 
     public SpeechSynthesizer synthesizer() {

@@ -47,6 +47,22 @@ public interface Action {
         return null;
     }
 
+    /**
+     * Risk for these specific arguments. Defaults to {@link #strategy()}; actions may
+     * raise it (typing text that ends with Enter, a Win-key shortcut). The runtime uses this.
+     */
+    default ExecutionStrategy strategyFor(Map<String, Object> arguments) {
+        return strategy();
+    }
+
+    /**
+     * Problem with these arguments, or {@code null} when they are fine. Checked before
+     * the user is asked to confirm — a call that cannot succeed is never put to the user.
+     */
+    default String validationError(Map<String, Object> arguments) {
+        return null;
+    }
+
     /** Per-tool timeout in seconds; 0 = the agent default. */
     default int timeoutSeconds() {
         return 0;

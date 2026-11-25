@@ -60,7 +60,7 @@ public class OpenApplicationAction implements Action {
         }
         Optional<Shortcut> shortcut = shortcuts == null ? Optional.empty() : shortcuts.find(name);
         Launcher.LaunchResult result = shortcut.isPresent()
-                ? (shortcut.get().isWebsite() ? launcher.openUrl(shortcut.get().url()) : launcher.openApp(shortcut.get().app()))
+                ? (shortcut.get().isWebsite() ? launcher.openUrl(shortcut.get().url()) : launcher.openTrusted(shortcut.get().app()))
                 : launcher.openApp(name);
         return result.success() ? ActionResult.ok(result.message()) : ActionResult.fail(result.message());
     }

@@ -38,4 +38,15 @@ public final class CoreEvents {
     public record HotkeyPressed() implements Event {
         @Override public String description() { return "HotkeyPressed"; }
     }
+
+    /** Something in the desktop UI (tray menu) asks the runtime to do something. */
+    public record UiRequest(Kind kind) implements Event {
+        public enum Kind { OPEN_COMMAND_WINDOW, TOGGLE_LISTENING, OPEN_SHORTCUTS_FILE }
+        @Override public String description() { return "UiRequest(" + kind + ")"; }
+    }
+
+    /** Listening was paused or resumed (so the tray/overlay can show it). */
+    public record ListeningStateChanged(boolean paused) implements Event {
+        @Override public String description() { return "ListeningStateChanged(paused=" + paused + ")"; }
+    }
 }

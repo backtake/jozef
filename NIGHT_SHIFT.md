@@ -73,7 +73,30 @@ Błędne założenia biznesowe:
 
 - 00:12 start, watchdog (Task Scheduler `JozefNightWatchdog`, co godzinę) + branch.
 - 00:20 review rdzenia, diagnoza powyżej.
+- 00:35 JOZEF-25 (P0-1..P0-5) → krytyk: FAIL (B1-B3 potwierdzenia, proaktywność jako "user input").
+- 00:45 JOZEF-26 poprawki + P1-1/P1-2 (skróty, Start menu, szybka ścieżka) → krytyk: FAIL (N1 przejęcie skrótów, N2-N10).
+- 01:00 JOZEF-27 poprawki rundy 2 + okienko poleceń (P1-3), pauza mikrofonu, cache modelu Vosk,
+  naprawa gubienia polecenia po "hej Józef", podpowiedzi błędów LLM, smoke test z prawdziwą Ollamą.
 
 ## Decyzje
 
+- Edge TTS usunięty: Microsoft zabezpieczył nieoficjalny endpoint zaciemnionym tokenem (DRM) — nie obchodzimy
+  zabezpieczeń; zastępstwo: OpenAI TTS (oficjalne API) → Windows TTS (Paulina, offline).
+- Proaktywne komunikaty (timery, maile, kalendarz) NIE idą do LLM jako polecenia — są mówione wprost
+  (zamyka wektor prompt-injection: temat maila sterujący agentem / zatwierdzający akcję).
+- Potwierdzenia: pytanie budowane w kodzie z prawdziwych argumentów; "tak/nie" klasyfikowane deterministycznie.
+- `jozef.llm.provider: auto` (OpenAI → DeepSeek → Ollama). Powód: główna skarga = słabe odpowiedzi małego modelu.
+  Cena: rozmowy idą do chmury, gdy jest klucz (log WARN przy starcie). Cofnięcie: `provider: ollama`.
+- Osobny planner (plan_task/execute_plan/autonomous_task) domyślnie wyłączony — pętla agenta sama planuje
+  wieloetapowo; planner dublował ją, kosztował i psuł potwierdzenia.
+- Skróty tworzone przez model: tylko URL / nazwa zainstalowanej aplikacji / protokół (spotify:), zawsze z
+  potwierdzeniem; ścieżki do plików tylko ręcznie w data/shortcuts.yml.
+- press_keys z Enter/Win, type_text z nową linią → wymagają potwierdzenia (łańcuch: otwórz terminal → wpisz → Enter).
+
 ## Problemy dla użytkownika
+
+1. **Konto OpenAI nie ma środków** (`credit_balance_exhausted`). Klucz jest ważny, ale każde zapytanie → 429.
+   Teraz Jozef automatycznie przechodzi na lokalną Ollamę (llama3.2 — działa, ale słabo). Doładuj konto OpenAI
+   (gpt-4.1-mini to grosze miesięcznie przy osobistym użyciu) albo ustaw `DEEPSEEK_API_KEY`.
+2. Ollama: uruchomiłem ją przy diagnozie (`ollama list` startuje serwer); pobrała się aktualizacja 0.40.18 —
+   instalator czeka, aż go zatwierdzisz.

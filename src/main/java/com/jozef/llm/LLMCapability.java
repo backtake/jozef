@@ -146,6 +146,10 @@ public class LLMCapability implements Capability {
     @Override
     public void initialize() {
         log.info("LLM capability initialized: provider={} (configured: {}), using {}", resolvedProvider, props.provider(), provider == null ? "-" : provider.name());
+        if (!"ollama".equals(resolvedProvider)) {
+            log.warn("Rozmowy z Jozefem (także treści maili, kalendarza i notatek, gdy ich dotyczą) są wysyłane do: {}. "
+                    + "Aby wszystko zostało na komputerze, ustaw jozef.llm.provider=ollama.", resolvedProvider);
+        }
     }
 
     @Override

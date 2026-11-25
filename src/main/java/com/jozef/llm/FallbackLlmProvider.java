@@ -18,11 +18,13 @@ import java.time.Instant;
 public class FallbackLlmProvider implements LLMProvider {
 
     static final Duration COOL_DOWN = Duration.ofSeconds(60);
+    static final Duration ACCOUNT_COOL_DOWN = Duration.ofMinutes(30);
 
     private final LLMProvider primary;
     private final LLMProvider fallback;
     private final Clock clock;
     private volatile Instant primaryBlockedUntil = Instant.MIN;
+    private volatile LlmException lastPrimaryError;
 
     public FallbackLlmProvider(LLMProvider primary, LLMProvider fallback) {
         this(primary, fallback, Clock.systemUTC());
@@ -62,9 +64,26 @@ public class FallbackLlmProvider implements LLMProvider {
                 if (Thread.currentThread().isInterrupted()) {
                     throw e instanceof RuntimeException re ? re : new LlmException("interrupted", e);
                 }
-                primaryBlockedUntil = clock.instant().plus(COOL_DOWN);
+                // An exhausted account / bad key will not heal in a minute — stop paying its latency.
+                lastPrimaryError = e instanceof LlmException le0 ? le0 : null;
+                boolean accountProblem = e instanceof LlmException le && le.isAccountProblem();
+                if (accountProblem) {
+                    log.error("Primary LLM '{}' is unusable (account/billing/key): {} — using '{}' for {} min.",
+                            primary.name(), e.getMessage(), fallback.name(), ACCOUNT_COOL_DOWN.toMinutes());
+                }
+                primaryBlockedUntil = clock.instant().plus(accountProblem ? ACCOUNT_COOL_DOWN : COOL_DOWN);
             }
         }
-        return fallback.chat(request);
+        try {
+            return fallback.chat(request);
+        } catch (LlmException fallbackError) {
+            // Report the primary's reason when it is the actionable one (e.g. no credits).
+            LlmException primaryError = lastPrimaryError;
+            if (primaryError != null && primaryError.isAccountProblem()) {
+                throw new LlmException(primaryError.getMessage() + " | fallback: " + fallbackError.getMessage(),
+                        primaryError.statusCode(), fallbackError);
+            }
+            throw fallbackError;
+        }
     }
 }

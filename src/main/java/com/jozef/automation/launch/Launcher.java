@@ -86,19 +86,37 @@ public class Launcher {
     }
 
     /**
-     * Opens an application by spoken name ("discord", "eksplorator plików"),
-     * an explicit target ({@code C:\…\app.exe}, {@code spotify:}) or a web address.
+     * Opens an application by spoken name ("discord", "eksplorator plików"), a bare
+     * URI scheme ({@code spotify:}) or a web address. Model-supplied input: file
+     * paths and {@code shell:} targets are refused — a path could point at a script.
      */
     public LaunchResult openApp(String nameOrTarget) {
+        return openApp(nameOrTarget, false);
+    }
+
+    /**
+     * Like {@link #openApp(String)} but also accepts local paths ({@code C:\Games\x.exe})
+     * and {@code shell:} ids. Only for targets the user wrote themselves (shortcuts file).
+     */
+    public LaunchResult openTrusted(String nameOrTarget) {
+        return openApp(nameOrTarget, true);
+    }
+
+    private LaunchResult openApp(String nameOrTarget, boolean allowPaths) {
         if (nameOrTarget == null || nameOrTarget.isBlank()) {
             return LaunchResult.fail("No application name given");
         }
         String target = nameOrTarget.trim();
 
+        if (looksLikePath(target) || target.startsWith("\\\\")) {
+            return allowPaths && !target.startsWith("\\\\")
+                    ? launch(target, target)
+                    : LaunchResult.fail("Opening files or paths is not allowed here — name an installed application");
+        }
         if (toWebUrl(target).isPresent() && !target.toLowerCase(Locale.ROOT).endsWith(".exe")) {
             return openUrl(target);
         }
-        if (URI_SCHEME_APP.matcher(target.toLowerCase(Locale.ROOT)).matches() || looksLikePath(target)) {
+        if (isSafeUriScheme(target)) {
             return launch(target, target);
         }
 
@@ -131,8 +149,16 @@ public class Launcher {
     }
 
     private static boolean looksLikePath(String s) {
-        // Local paths and shell: ids only — never UNC (\\server\share\x.exe) network paths.
-        return s.matches("^[a-zA-Z]:\\\\.*") || s.startsWith("shell:");
+        return s.matches("^[a-zA-Z]:[\\\\/].*") || s.startsWith("shell:") || s.contains("\\") || s.contains("/")
+                && !s.toLowerCase(Locale.ROOT).startsWith("http");
+    }
+
+    /** "spotify:", "ms-settings:" — app protocols. Never file:, javascript:, script hosts or search-ms:. */
+    public static boolean isSafeUriScheme(String target) {
+        String t = target.toLowerCase(Locale.ROOT);
+        if (!URI_SCHEME_APP.matcher(t).matches()) return false;
+        return !(t.equals("file:") || t.equals("javascript:") || t.equals("vbscript:") || t.equals("shell:")
+                || t.startsWith("search") || t.equals("ms-msdt:") || t.equals("cmd:") || t.equals("powershell:"));
     }
 
     /** Windows: {@code explorer.exe <target>} — opens URLs, apps, files and shell: ids without a shell. */

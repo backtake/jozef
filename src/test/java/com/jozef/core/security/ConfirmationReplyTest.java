@@ -10,8 +10,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ConfirmationReplyTest {
 
+    @Test
+    void yesWithTheToolsVerbIsAccepted() {
+        assertThat(ConfirmationReply.classify("tak, wyślij", List.of("gmail_send"))).isEqualTo(ConfirmationReply.Kind.YES);
+        assertThat(ConfirmationReply.classify("wyślij proszę", List.of("gmail_send"))).isEqualTo(ConfirmationReply.Kind.YES);
+        // A correction or an unrelated continuation is not a yes.
+        assertThat(ConfirmationReply.classify("tak, wyślij do Basi", List.of("gmail_send"))).isEqualTo(ConfirmationReply.Kind.OTHER);
+        assertThat(ConfirmationReply.classify("wyślij do Basi", List.of("gmail_send"))).isEqualTo(ConfirmationReply.Kind.OTHER);
+        assertThat(ConfirmationReply.classify("tak w ogóle która godzina")).isEqualTo(ConfirmationReply.Kind.OTHER);
+        assertThat(ConfirmationReply.classify("tak sobie")).isEqualTo(ConfirmationReply.Kind.OTHER);
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = {"tak", "Tak.", "TAK!", "tak, wyślij", "Jasne", "ok", "potwierdzam",
+    @ValueSource(strings = {"tak", "Tak.", "TAK!", "Jasne", "ok", "potwierdzam",
             "dawaj", "zrób to", "Józef, tak", "no tak", "yes", "tak, oczywiście", "no jasne", "tak jest",
             "oczywiście", "śmiało", "tak tak tak", "dobra"})
     void recognisesYes(String reply) {

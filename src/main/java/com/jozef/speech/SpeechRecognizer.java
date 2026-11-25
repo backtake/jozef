@@ -12,4 +12,8 @@ public interface SpeechRecognizer {
      * Blocks until speech is detected and transcribed.
      */
     String listen();
+
+    /** Ask a blocking {@link #listen()} to return early (e.g. listening paused). Optional. */
+    default void interrupt() {
+    }
 }

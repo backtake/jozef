@@ -6,6 +6,7 @@ import com.jozef.core.action.ActionContext;
 import com.jozef.core.action.ActionResult;
 import com.jozef.core.action.ExecutionStrategy;
 import com.jozef.core.action.LambdaAction;
+import com.jozef.core.util.SpokenDates;
 import com.jozef.core.capabilities.Capability;
 import com.jozef.core.tool.ToolParameters;
 import com.jozef.core.tool.ToolRegistry;
@@ -159,7 +160,7 @@ public class GoogleCapability implements Capability {
                         .string("description", "Event description", false)
                         .string("location", "Event location", false)
                         .build(),
-                Set.of("GOOGLE_CALENDAR"), ExecutionStrategy.SAFE,
+                Set.of("GOOGLE_CALENDAR"), ExecutionStrategy.CONFIRM,
                 ctx -> {
                     CalendarEvent event = calendar.createEvent(
                             require(ctx, "summary"),
@@ -169,17 +170,44 @@ public class GoogleCapability implements Capability {
                             ctx.getString("location"));
                     return ActionResult.ok("Created event: " + event.summary() + " (" + event.htmlLink() + ")",
                             event);
+                }).withConfirmationSummary(args -> "dodać do kalendarza „" + args.get("summary") + "” — "
+                        + SpokenDates.range(str(args.get("start")), str(args.get("end")))
+                        + (args.get("location") == null ? "" : ", miejsce: " + args.get("location"))));
+
+        toolRegistry.register(action("calendar_events_on_day",
+                "List the user's calendar events on a given day (\"co mam jutro\", \"plan na piątek\"). "
+                        + "Pass the date as yyyy-MM-dd, or 'today' / 'tomorrow'.",
+                new ToolParameters().string("date", "Day as yyyy-MM-dd, 'today' or 'tomorrow'", true).build(),
+                Set.of("GOOGLE_CALENDAR"), ExecutionStrategy.SAFE,
+                ctx -> {
+                    String day = com.jozef.core.util.Dates.resolveDay(require(ctx, "date"));
+                    if (day == null) return ActionResult.fail("Use a date as yyyy-MM-dd, 'today' or 'tomorrow'");
+                    List<CalendarEvent> events = calendar.listForDay(day);
+                    return ActionResult.ok(events.isEmpty() ? "No events on " + day + "." : formatEvents(events), events);
                 }));
 
         toolRegistry.register(action("calendar_delete_event",
-                "Delete an event from Google Calendar by its id.",
+                "Delete an event from Google Calendar by its id (get the id from a list tool first).",
                 new ToolParameters().string("event_id", "ID of the event to delete", true).build(),
                 Set.of("GOOGLE_CALENDAR"), ExecutionStrategy.CONFIRM,
                 ctx -> {
                     String id = require(ctx, "event_id");
                     calendar.deleteEvent(id);
                     return ActionResult.ok("Deleted event " + id);
+                }).withConfirmationSummary(args -> {
+                    // Say WHAT gets deleted, not an opaque id.
+                    String id = str(args.get("event_id"));
+                    try {
+                        CalendarEvent e = calendar.getEvent(id);
+                        return "usunąć z kalendarza „" + e.summary() + "” (" + SpokenDates.range(e.start(), e.end()) + ")";
+                    } catch (Exception ex) {
+                        return "usunąć z kalendarza wydarzenie o identyfikatorze " + id + " (nie udało się pobrać jego nazwy)";
+                    }
                 }));
+    }
+
+    private static String str(Object o) {
+        return o == null ? "" : o.toString();
     }
 
     private void registerGmailTools() {
@@ -197,6 +225,11 @@ public class GoogleCapability implements Capability {
                             require(ctx, "subject"),
                             require(ctx, "body"));
                     return ActionResult.ok("Email sent (id " + id + ")");
+                }).withConfirmationSummary(args -> {
+                    String body = str(args.get("body")).replaceAll("\\s+", " ").trim();
+                    if (body.length() > 220) body = body.substring(0, 217) + "…";
+                    return "wysłać e-mail do " + args.get("to") + ", temat: „" + args.get("subject")
+                            + "”, treść: „" + body + "”";
                 }));
 
         toolRegistry.register(action("gmail_list_recent",
@@ -224,7 +257,7 @@ public class GoogleCapability implements Capability {
 
     // ─── Helpers ────────────────────────────────────────────────
 
-    private Action action(String name, String description, Map<String, Object> schema,
+    private LambdaAction action(String name, String description, Map<String, Object> schema,
                           Set<String> permissions, ExecutionStrategy strategy,
                           Function<ActionContext, ActionResult> executor) {
         return new LambdaAction(name, description, schema, permissions, strategy, executor);

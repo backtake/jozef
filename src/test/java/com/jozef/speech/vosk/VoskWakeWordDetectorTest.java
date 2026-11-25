@@ -26,5 +26,8 @@ class VoskWakeWordDetectorTest {
                 .isEqualTo("otwórz Chrome");
         assertThat(VoskWakeWordDetector.commandAfter("hej jozef", "hej jozef")).isEmpty();
         assertThat(VoskWakeWordDetector.commandAfter("coś innego", "hej jozef")).isEmpty();
+        // The recogniser writes the name with "ó" — the command must not be lost.
+        assertThat(VoskWakeWordDetector.commandAfter("hej józef otwórz pocztę", "hej jozef")).isEqualTo("otwórz pocztę");
+        assertThat(VoskWakeWordDetector.commandAfter("no hej józefie, która godzina", "hej jozef")).isEqualTo("która godzina");
     }
 }

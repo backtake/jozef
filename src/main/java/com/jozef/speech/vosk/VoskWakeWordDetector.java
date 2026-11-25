@@ -3,7 +3,7 @@ package com.jozef.speech.vosk;
 import com.jozef.speech.WakeWordDetector;
 import com.jozef.speech.mic.MicrophoneAudioSource;
 import lombok.extern.slf4j.Slf4j;
-import org.vosk.Model;
+
 import org.vosk.Recognizer;
 
 import java.text.Normalizer;
@@ -23,6 +23,7 @@ public class VoskWakeWordDetector implements WakeWordDetector {
 
     private final String modelPath;
     private final String wakeWord;
+    private volatile boolean interrupted;
 
     public VoskWakeWordDetector(String modelPath, String wakeWord) {
         this.modelPath = modelPath;
@@ -35,10 +36,14 @@ public class VoskWakeWordDetector implements WakeWordDetector {
     }
 
     @Override
+    public void interrupt() {
+        interrupted = true;
+    }
+
+    @Override
     public String awaitWakeWord() {
-        VoskNativeLibrary.prepare();
-        try (Model model = new Model(modelPath);
-             Recognizer recognizer = new Recognizer(model, SAMPLE_RATE);
+        interrupted = false;
+        try (Recognizer recognizer = new Recognizer(VoskModels.get(modelPath), SAMPLE_RATE);
              MicrophoneAudioSource mic = new MicrophoneAudioSource()) {
 
             mic.open();
@@ -46,7 +51,7 @@ public class VoskWakeWordDetector implements WakeWordDetector {
             boolean wakeDetected = false;
             long wakeDetectedAt = 0;
 
-            while (true) {
+            while (!interrupted) {
                 int read = mic.read(buffer);
                 if (read <= 0) {
                     continue;
@@ -81,6 +86,7 @@ public class VoskWakeWordDetector implements WakeWordDetector {
                     return ""; // user said only the wake word
                 }
             }
+            return null; // interrupted (listening paused)
         } catch (Exception e) {
             log.error("Vosk wake-word detection failed: {}", e.getMessage(), e);
             return "";
@@ -89,25 +95,41 @@ public class VoskWakeWordDetector implements WakeWordDetector {
 
     // ─── Matching (package-private for tests) ───────────────
 
-    static boolean containsWakeWord(String text, String wakeWord) {
+    public static boolean containsWakeWord(String text, String wakeWord) {
         if (text == null || text.isBlank()) {
             return false;
         }
         return normalize(text).contains(normalize(wakeWord));
     }
 
-    /** Returns the text after the wake word (case-insensitive, best effort). */
-    static String commandAfter(String text, String wakeWord) {
+    /**
+     * Returns the words spoken after the wake word, keeping their original
+     * spelling. Matching is word-by-word and diacritics-insensitive, so the
+     * recogniser's "hej józef otwórz pocztę" yields "otwórz pocztę" for the
+     * configured "hej jozef" (a plain indexOf missed it and lost the command).
+     */
+    public static String commandAfter(String text, String wakeWord) {
         if (text == null || text.isBlank()) {
             return "";
         }
-        String lower = text.toLowerCase(Locale.ROOT);
-        String ww = wakeWord.toLowerCase(Locale.ROOT);
-        int idx = lower.indexOf(ww);
-        if (idx < 0) {
-            return "";
+        String[] words = text.trim().split("\\s+");
+        String[] wake = normalize(wakeWord).split(" ");
+        for (int i = 0; i + wake.length <= words.length; i++) {
+            boolean match = true;
+            for (int j = 0; j < wake.length; j++) {
+                String w = normalize(words[i + j]).replaceAll("[^a-z0-9]", "");
+                // "józefie" (vocative) still counts as the name.
+                if (!(w.equals(wake[j]) || (j == wake.length - 1 && w.startsWith(wake[j])))) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                return String.join(" ", java.util.Arrays.copyOfRange(words, i + wake.length, words.length))
+                        .replaceFirst("^[,.!?\\s]+", "").trim();
+            }
         }
-        return text.substring(idx + ww.length()).trim();
+        return "";
     }
 
     /** Lowercase + strip diacritics + collapse whitespace. */

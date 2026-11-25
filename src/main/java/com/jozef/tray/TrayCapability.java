@@ -107,6 +107,18 @@ public class TrayCapability implements Capability {
             status.setEnabled(false);
             menu.add(status);
             menu.addSeparator();
+            MenuItem write = new MenuItem("Napisz polecenie…  (" + (props.hotkey() == null ? "" : props.hotkey()) + ")");
+            write.addActionListener(e -> eventBus.publish(new CoreEvents.UiRequest(CoreEvents.UiRequest.Kind.OPEN_COMMAND_WINDOW)));
+            menu.add(write);
+            MenuItem listening = new MenuItem("Wstrzymaj słuchanie");
+            listening.addActionListener(e -> eventBus.publish(new CoreEvents.UiRequest(CoreEvents.UiRequest.Kind.TOGGLE_LISTENING)));
+            menu.add(listening);
+            eventBus.register(CoreEvents.ListeningStateChanged.class, ev -> SwingUtilities.invokeLater(() ->
+                    listening.setLabel(ev.paused() ? "Wznów słuchanie" : "Wstrzymaj słuchanie")));
+            MenuItem shortcuts = new MenuItem("Edytuj skróty (strony i programy)…");
+            shortcuts.addActionListener(e -> eventBus.publish(new CoreEvents.UiRequest(CoreEvents.UiRequest.Kind.OPEN_SHORTCUTS_FILE)));
+            menu.add(shortcuts);
+            menu.addSeparator();
             MenuItem exit = new MenuItem("Zakończ");
             exit.addActionListener(e -> exitApplication());
             menu.add(exit);

@@ -44,25 +44,36 @@ public class WindowsStartAppsCatalog implements InstalledAppsCatalog {
     }
 
     private List<InstalledApp> scan() {
+        java.nio.file.Path out = null;
         try {
+            // Output goes to a file, so a hung PowerShell can never block us past the timeout.
+            out = java.nio.file.Files.createTempFile("jozef-apps", ".json");
             Process process = new ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", SCRIPT)
                     .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .redirectOutput(out.toFile())
                     .start();
-            byte[] out = process.getInputStream().readAllBytes();
             if (!process.waitFor(20, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
                 log.warn("Get-StartApps timed out");
-                return List.of();
+                return cache == null ? List.of() : cache;
             }
-            List<InstalledApp> apps = parse(new String(out, StandardCharsets.UTF_8));
+            List<InstalledApp> apps = parse(java.nio.file.Files.readString(out, StandardCharsets.UTF_8));
             log.info("Found {} installed applications in the Start menu", apps.size());
             return apps;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return List.of();
+            return cache == null ? List.of() : cache;
         } catch (Exception e) {
             log.warn("Cannot list installed applications: {}", e.getMessage());
-            return List.of();
+            return cache == null ? List.of() : cache;
+        } finally {
+            if (out != null) {
+                try {
+                    java.nio.file.Files.deleteIfExists(out);
+                } catch (Exception ignored) {
+                    // temp file
+                }
+            }
         }
     }
 

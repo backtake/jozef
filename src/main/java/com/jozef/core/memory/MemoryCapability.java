@@ -122,6 +122,14 @@ public class MemoryCapability implements Capability {
                     return removed
                             ? ActionResult.ok("Forgot note " + id)
                             : ActionResult.fail("No note with id " + id);
+                }).withConfirmationSummary(args -> {
+                    String id = String.valueOf(args.get("note_id"));
+                    return memory.all().stream()
+                            .filter(n -> n.id().equals(id))
+                            .findFirst()
+                            .map(n -> "usunąć notatkę: „" + (n.content().length() > 160
+                                    ? n.content().substring(0, 157) + "…" : n.content()) + "”")
+                            .orElse("usunąć notatkę o identyfikatorze " + id + " (nie ma takiej notatki)");
                 }));
 
         log.info("Memory capability initialized ({} tools registered).", toolRegistry.size());

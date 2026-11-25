@@ -15,4 +15,8 @@ public interface WakeWordDetector {
      *         for the command separately).
      */
     String awaitWakeWord();
+
+    /** Ask a blocking {@link #awaitWakeWord()} to return {@code null} early (listening paused). Optional. */
+    default void interrupt() {
+    }
 }

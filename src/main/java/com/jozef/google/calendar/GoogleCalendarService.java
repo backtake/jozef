@@ -99,6 +99,11 @@ public class GoogleCalendarService {
         return toEvent(created);
     }
 
+    /** A single event by id (used to tell the user what exactly will be changed/deleted). */
+    public CalendarEvent getEvent(String eventId) {
+        return toEvent(getJson(BASE + "/calendars/" + urlEncode(calendarId) + "/events/" + urlEncode(eventId)));
+    }
+
     /** Deletes an event by id. Throws on failure. */
     public void deleteEvent(String eventId) {
         String url = BASE + "/calendars/" + urlEncode(calendarId) + "/events/" + urlEncode(eventId);

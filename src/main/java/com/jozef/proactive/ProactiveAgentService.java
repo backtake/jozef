@@ -18,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ProactiveAgentService {
 
+    private static final long MAX_DEFER_MILLIS = 4 * 60_000;
+
     private final AgentRuntime agent;
     private final SpeechCapability speech;
     private final EventBus eventBus;
@@ -35,11 +37,19 @@ public class ProactiveAgentService {
         }
         eventBus.publish(new ProactiveEvent(notice));
         try {
+            // Don't talk over a pending "Mam to zrobić?" — the user's next "tak" belongs to
+            // that question, not to whatever a notice says. Wait until it is answered/expired.
+            long deadline = System.currentTimeMillis() + MAX_DEFER_MILLIS;
+            while (agent.hasPendingConfirmation() && System.currentTimeMillis() < deadline) {
+                Thread.sleep(2_000);
+            }
             agent.recordAssistantNotice(notice);
             String text = SpeechTextCleaner.clean(notice);
             if (!text.isBlank()) {
                 speech.synthesizer().speak(text);
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         } catch (Exception e) {
             log.error("Proactive notice failed: {}", e.getMessage(), e);
         }

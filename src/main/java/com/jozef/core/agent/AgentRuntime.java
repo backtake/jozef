@@ -5,6 +5,7 @@ import com.jozef.configuration.LlmProperties;
 import com.jozef.configuration.MemoryProperties;
 import com.jozef.core.action.Action;
 import com.jozef.core.action.ActionResult;
+import com.jozef.core.action.ExecutionStrategy;
 import com.jozef.core.context.ContextAggregator;
 import com.jozef.core.context.SystemPromptProvider;
 import com.jozef.core.events.AgentEvents;
@@ -64,6 +65,8 @@ public class AgentRuntime implements AutoCloseable {
     static final String LLM_UNAVAILABLE = "Przepraszam, nie mogę teraz połączyć się z modelem językowym. Spróbuj za chwilę.";
     static final String TOO_MANY_STEPS = "Wykonałem już sporo kroków i nie skończyłem. Spróbuj podzielić polecenie na prostsze.";
     static final String CANCELLED = "Dobrze, anulowałem.";
+    static final String DONE_BUT_LLM_UNAVAILABLE =
+            "Zrobiłem to, ale nie mogę teraz połączyć się z modelem językowym, żeby powiedzieć więcej.";
     static final Duration PENDING_TTL = Duration.ofMinutes(3);
     private static final int MAX_PARKED = 3;
 
@@ -80,6 +83,7 @@ public class AgentRuntime implements AutoCloseable {
     private final MemoryProperties memoryProperties;
     private final Clock clock;
     private final List<FastPath> fastPaths = new CopyOnWriteArrayList<>();
+    private volatile String lastLlmHint;
 
     /**
      * Tools run on one dedicated thread (thread-confined libraries such as Playwright
@@ -187,23 +191,43 @@ public class AgentRuntime implements AutoCloseable {
             log.info("Pending {} dropped — the user moved on", waiting.describeTools());
         }
 
+        Optional<AgentResult> fast = tryFastPaths(userMessage, executions);
+        if (fast.isPresent()) {
+            return fast.get();
+        }
+        return loop(messages, executions);
+    }
+
+    /**
+     * Deterministic commands: resolved by a {@link FastPath}, executed through the
+     * normal safety path. Only SAFE, permitted tools that succeed end the turn here;
+     * otherwise the model handles the request as usual.
+     */
+    private Optional<AgentResult> tryFastPaths(String userMessage, List<ToolExecution> executions) {
         for (FastPath fastPath : fastPaths) {
-            Optional<FastPath.Handled> handled;
+            Optional<FastPath.Resolved> resolved;
             try {
-                handled = fastPath.tryHandle(userMessage);
+                resolved = fastPath.resolve(userMessage);
             } catch (Exception e) {
                 log.warn("Fast path {} failed: {}", fastPath.getClass().getSimpleName(), e.getMessage());
                 continue;
             }
-            if (handled.isPresent()) {
-                ToolExecution execution = handled.get().execution();
-                executions.add(execution);
-                recordOutcome(execution);
-                return finish(handled.get().reply(), executions, execution.success());
+            if (resolved.isEmpty()) continue;
+            ToolCall call = resolved.get().call();
+            Action action = toolRegistry.find(call.name()).orElse(null);
+            if (action == null || !permissionManager.isAllowed(action)
+                    || confirmationService.requiresConfirmation(action.strategyFor(call.arguments()))) {
+                return Optional.empty();
             }
+            ToolExecution execution = runTool(action, call);
+            if (execution.success()) {
+                executions.add(execution);
+                return Optional.of(finish(resolved.get().reply(), executions, true));
+            }
+            log.info("Fast path '{}' failed ({}), handing over to the model", call.name(), execution.message());
+            return Optional.empty();
         }
-
-        return loop(messages, executions);
+        return Optional.empty();
     }
 
     /**
@@ -224,6 +248,12 @@ public class AgentRuntime implements AutoCloseable {
         return p != null && !p.isExpired(clock.instant());
     }
 
+    /** Names of the tools waiting for confirmation (empty when none). Lock-free. */
+    public List<String> pendingToolNames() {
+        PendingConfirmation p = pending;
+        return p == null || p.isExpired(clock.instant()) ? List.of() : p.toolNames();
+    }
+
     private AgentResult loop(List<ChatMessage> messages, List<ToolExecution> executions) {
         String systemPrompt = buildSystemPrompt();
         List<ToolSchema> toolSchemas = toolRegistry.definitions().stream()
@@ -238,7 +268,9 @@ public class AgentRuntime implements AutoCloseable {
             boolean lastStep = step == maxSteps;
             ChatResponse response = callLlm(systemPrompt, messages, lastStep ? List.of() : toolSchemas);
             if (response == null) {
-                return finish(LLM_UNAVAILABLE, executions, false);
+                // Never claim "nothing happened" after something did — the user would retry it.
+                boolean anyDone = executions.stream().anyMatch(ToolExecution::success);
+                return finish(anyDone ? DONE_BUT_LLM_UNAVAILABLE : llmUnavailableText(), executions, anyDone);
             }
 
             if (!response.hasToolCalls() || lastStep) {
@@ -300,8 +332,16 @@ public class AgentRuntime implements AutoCloseable {
         } catch (Exception e) {
             log.error("LLM call failed: {}", e.getMessage(), e);
             eventBus.publish(new AgentEvents.LLMRequestFailed(e.getMessage()));
+            lastLlmHint = e instanceof com.jozef.llm.LlmException le ? le.userHint() : null;
             return null;
         }
+    }
+
+    /** "Przepraszam, nie mogę… — na koncie skończyły się środki." when the reason is known. */
+    private String llmUnavailableText() {
+        String hint = lastLlmHint;
+        return hint == null ? LLM_UNAVAILABLE
+                : "Przepraszam, nie mogę teraz skorzystać z modelu językowego: " + hint + ".";
     }
 
     private AgentResult finish(String text, List<ToolExecution> executions, boolean success) {
@@ -327,10 +367,20 @@ public class AgentRuntime implements AutoCloseable {
             return ToolExecution.of(toolName, arguments, false, "Permission denied for tool: " + toolName, 0);
         }
 
-        if (confirmationService.requiresConfirmation(action.strategy())) {
-            eventBus.publish(new AgentEvents.ConfirmationRequested(toolName, arguments, action.strategy().name()));
+        ExecutionStrategy strategy = action.strategyFor(arguments);
+        if (confirmationService.requiresConfirmation(strategy)) {
+            eventBus.publish(new AgentEvents.ConfirmationRequested(toolName, arguments, strategy.name()));
 
             if (confirmationService instanceof ConversationalConfirmationService) {
+                String invalid;
+                try {
+                    invalid = action.validationError(arguments);
+                } catch (Exception e) {
+                    invalid = e.getMessage();
+                }
+                if (invalid != null) {
+                    return ToolExecution.of(toolName, arguments, false, "Invalid arguments: " + invalid, 0);
+                }
                 boolean duplicate = parked.stream().anyMatch(p ->
                         p.call().name().equals(toolName) && p.call().arguments().equals(arguments));
                 if (!duplicate) {
@@ -346,7 +396,7 @@ public class AgentRuntime implements AutoCloseable {
                                 + "Do not call this tool again in this turn; just reply briefly.", 0);
             }
 
-            boolean approved = confirmationService.confirm(toolName, arguments, action.strategy());
+            boolean approved = confirmationService.confirm(toolName, arguments, strategy);
             eventBus.publish(new AgentEvents.ConfirmationResolved(toolName, approved));
             if (!approved) {
                 eventBus.publish(new AgentEvents.ActionFailed(toolName, "Confirmation required"));
@@ -387,7 +437,7 @@ public class AgentRuntime implements AutoCloseable {
             log.warn("Tool '{}' timed out after {}s — replacing the tool thread", toolName, timeoutSeconds);
             executor.shutdownNow();
             toolExecutor = newToolExecutor();
-            result = ActionResult.fail(action.strategy() == com.jozef.core.action.ExecutionStrategy.SAFE
+            result = ActionResult.fail(action.strategyFor(arguments) == ExecutionStrategy.SAFE
                     ? "Tool timed out after " + timeoutSeconds + "s"
                     : "OUTCOME UNKNOWN — no answer within " + timeoutSeconds
                     + "s; the action may still complete. Do NOT retry it; tell the user to check.");

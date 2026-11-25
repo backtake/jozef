@@ -380,16 +380,69 @@ class AgentRuntimeTest {
     @Test
     void fastPathHandlesCommandWithoutCallingTheModel() {
         FakeLlm llm = new FakeLlm();
-        AgentRuntime agent = agentWith(llm, new ToolRegistry(), new AutoDenyConfirmationService());
-        agent.addFastPath(text -> text.contains("youtube")
-                ? java.util.Optional.of(new FastPath.Handled("Otwieram YouTube.",
-                        ToolExecution.of("open_url", Map.of(), true, "ok", 0)))
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(echoAction());
+        AgentRuntime agent = agentWith(llm, tools, new AutoDenyConfirmationService());
+        agent.addFastPath(text -> text.contains("echo")
+                ? java.util.Optional.of(new FastPath.Resolved(ToolCall.of("echo", Map.of("value", "x")), "Zrobione."))
                 : java.util.Optional.empty());
 
-        AgentResult result = agent.process("otwórz youtube");
+        AgentResult result = agent.process("zrób echo");
 
-        assertThat(result.text()).isEqualTo("Otwieram YouTube.");
+        assertThat(result.text()).isEqualTo("Zrobione.");
+        assertThat(result.toolExecutions()).singleElement().satisfies(e -> assertThat(e.message()).isEqualTo("echoed: x"));
         assertThat(llm.lastRequest()).isNull();
+    }
+
+    @Test
+    void fastPathNeverBypassesConfirmation() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+        llm.enqueue(new ChatResponse("Model handled it", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+        agent.addFastPath(text -> java.util.Optional.of(
+                new FastPath.Resolved(ToolCall.of("send_email", Map.of("to", "x")), "Wysłane.")));
+
+        AgentResult result = agent.process("wyślij");
+
+        assertThat(send.executions).isZero();
+        assertThat(result.text()).isEqualTo("Model handled it");
+    }
+
+    @Test
+    void approvedActionFollowedByLlmFailureDoesNotClaimNothingHappened() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "x")))));
+        llm.enqueue(new ChatResponse("?", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+        agent.process("wyślij");
+
+        AgentResult done = agent.process("tak"); // queue is empty now → the follow-up LLM call fails
+
+        assertThat(send.executions).isEqualTo(1);
+        assertThat(done.text()).isEqualTo(AgentRuntime.DONE_BUT_LLM_UNAVAILABLE);
+    }
+
+    @Test
+    void correctionAfterYesIsNotAnApproval() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "ania@example.com")))));
+        llm.enqueue(new ChatResponse("?", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+        agent.process("wyślij Ani");
+
+        llm.enqueue(new ChatResponse("Do Basi? Podaj adres.", List.of()));
+        agent.process("tak, wyślij do Basi");
+
+        assertThat(send.executions).isZero();
     }
 
     private static class MutableClock extends java.time.Clock {
@@ -418,7 +471,7 @@ class AgentRuntimeTest {
         AgentResult result = agent.process("cześć");
 
         assertThat(result.success()).isFalse();
-        assertThat(result.text()).isEqualTo(AgentRuntime.LLM_UNAVAILABLE).doesNotContain("401");
+        assertThat(result.text()).startsWith("Przepraszam").contains("klucz API").doesNotContain("401");
     }
 
     @Test
