@@ -14,17 +14,19 @@ spring:
 jozef:
   # ─── LLM ────────────────────────────────────────────
   llm:
-    provider: ollama               # ollama | openai | deepseek
-    model: llama3.2
-    endpoint: http://localhost:11434
-    api-key-env: OPENAI_API_KEY    # env var name for the secret (never inline)
-    temperature: 0.7
-    max-tokens: 2048
-    fallback:                      # używany automatycznie, gdy Ollama zawiedzie
-      provider: deepseek
-      model: deepseek-chat
-      endpoint: ""                 # puste = https://api.deepseek.com/v1/chat/completions
-      api-key-env: DEEPSEEK_API_KEY
+    # auto = najlepszy dostępny: OpenAI (gdy jest OPENAI_API_KEY) → DeepSeek (DEEPSEEK_API_KEY) → lokalna Ollama.
+    # Małe modele lokalne (llama3.2 3B) słabo radzą sobie z narzędziami i polskim — stąd chmura, gdy jest klucz.
+    provider: auto                 # auto | openai | deepseek | ollama
+    model: ""                      # puste = domyślny providera (openai: gpt-4.1-mini, deepseek: deepseek-chat, ollama: llama3.2)
+    endpoint: ""                   # puste = domyślny providera (ollama: http://localhost:11434)
+    api-key-env: ""                # nazwa zmiennej środowiskowej z kluczem (puste = standardowa dla providera)
+    temperature: 0.4
+    max-tokens: 1024
+    timeout-seconds: 90
+    fallback:                      # używany automatycznie, gdy główny model zawiedzie
+      provider: ollama
+      model: llama3.2
+      endpoint: http://localhost:11434
 
   # ─── Persona ────────────────────────────────────────
   persona:
@@ -123,7 +125,7 @@ jozef:
 
   # ─── Planning (autonomous execution) ──────────────
   planning:
-    enabled: true
+    enabled: false                 # pętla agenta sama planuje wieloetapowo; osobny planner dubluje ją i zwiększa ryzyko/koszt
     max-attempts: 3                # ile razy replanować po błędzie
     file: data/plans.json          # trwały zapis planów (przetrwają restart)
 

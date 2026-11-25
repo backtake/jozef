@@ -37,4 +37,35 @@ public interface Action {
 
     /** Execute the action with the given arguments. */
     ActionResult execute(ActionContext context);
+
+    /**
+     * What the user is asked to approve, in their language, with the details that
+     * matter ("wysłać e-mail do ania@x.pl, temat: Urlop"). Built from the real
+     * arguments — never from model prose. {@code null} = generic summary.
+     */
+    default String confirmationSummary(Map<String, Object> arguments) {
+        return null;
+    }
+
+    /** Per-tool timeout in seconds; 0 = the agent default. */
+    default int timeoutSeconds() {
+        return 0;
+    }
+
+    /** Generic, honest summary listing every argument (long values shortened). */
+    static String defaultConfirmationSummary(String toolName, Map<String, Object> arguments) {
+        StringBuilder sb = new StringBuilder("wykonać akcję ").append(toolName);
+        if (arguments != null && !arguments.isEmpty()) {
+            sb.append(" (");
+            int i = 0;
+            for (Map.Entry<String, Object> e : new java.util.TreeMap<>(arguments).entrySet()) {
+                if (i++ > 0) sb.append(", ");
+                String value = String.valueOf(e.getValue());
+                if (value.length() > 160) value = value.substring(0, 157) + "…";
+                sb.append(e.getKey()).append(": ").append(value);
+            }
+            sb.append(")");
+        }
+        return sb.toString();
+    }
 }

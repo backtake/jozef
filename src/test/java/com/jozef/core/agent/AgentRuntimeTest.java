@@ -198,7 +198,8 @@ class AgentRuntimeTest {
         AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
 
         AgentResult ask = agent.process("wyślij Ani maila");
-        assertThat(ask.text()).isEqualTo("Mam wysłać maila do Ani?");
+        // The question is built by Jozef from the real arguments, not taken from the model.
+        assertThat(ask.text()).contains("send_email").contains("ania@example.com").contains("tak albo nie");
         assertThat(send.executions).isZero();
         assertThat(agent.hasPendingConfirmation()).isTrue();
         assertThat(llm.lastRequest().messages().get(2).content()).contains("NOT EXECUTED YET");
@@ -274,6 +275,129 @@ class AgentRuntimeTest {
         agent.process("wyślij maila");
 
         assertThat(send.executions).isZero();
+    }
+
+    @Test
+    void modelTextCannotMisrepresentWhatWillBeApproved() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(new CountingConfirmAction());
+
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "attacker@evil.example")))));
+        llm.enqueue(new ChatResponse("Mam zapisać notatkę?", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+
+        AgentResult ask = agent.process("zrób porządek w notatkach");
+
+        assertThat(ask.text()).contains("attacker@evil.example").doesNotContain("notatkę");
+    }
+
+    @Test
+    void parkedActionIsDroppedWhenTheTurnFailsSoALaterOkDoesNothing() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "x")))));
+        // next LLM call returns null → treated as provider failure
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+
+        AgentResult failed = agent.process("wyślij maila");
+        assertThat(failed.text()).isEqualTo(AgentRuntime.LLM_UNAVAILABLE);
+        assertThat(agent.hasPendingConfirmation()).isFalse();
+
+        llm.enqueue(new ChatResponse("Okej.", List.of()));
+        agent.process("ok");
+        assertThat(send.executions).isZero();
+    }
+
+    @Test
+    void severalRiskyCallsAreConfirmedAndExecutedTogether() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+
+        llm.enqueue(new ChatResponse("", List.of(
+                ToolCall.of("a", "send_email", Map.of("to", "ania@example.com")),
+                ToolCall.of("b", "send_email", Map.of("to", "bartek@example.com")))));
+        llm.enqueue(new ChatResponse("Wysłać oba?", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+
+        AgentResult ask = agent.process("wyślij obu");
+        assertThat(ask.text()).contains("2 działania").contains("ania@example.com").contains("bartek@example.com");
+
+        llm.enqueue(new ChatResponse("Wysłałem oba.", List.of()));
+        AgentResult done = agent.process("tak");
+        assertThat(send.executions).isEqualTo(2);
+        assertThat(done.toolExecutions()).hasSize(2);
+    }
+
+    @Test
+    void parkedActionExpires() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+        MutableClock clock = new MutableClock();
+
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "x")))));
+        llm.enqueue(new ChatResponse("?", List.of()));
+        AgentRuntime agent = new AgentRuntime(llm, tools, () -> "sys", new RecordingEventBus(),
+                new SessionManager(tempDir.resolve("s.json").toString()), new PermissionManager(),
+                new ConversationalConfirmationService(), new AgentProperties(5, 30),
+                new LlmProperties("x", "m", null, null, 0.7, 100, null), null,
+                new MemoryProperties(50, 10, null, null), clock);
+        agent.process("wyślij");
+        assertThat(agent.hasPendingConfirmation()).isTrue();
+
+        clock.advance(AgentRuntime.PENDING_TTL.plusSeconds(1));
+        assertThat(agent.hasPendingConfirmation()).isFalse();
+        llm.enqueue(new ChatResponse("Na co?", List.of()));
+        agent.process("tak");
+        assertThat(send.executions).isZero();
+    }
+
+    @Test
+    void assistantNoticesNeverResolveAPendingConfirmation() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "x")))));
+        llm.enqueue(new ChatResponse("?", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+        agent.process("wyślij");
+
+        agent.recordAssistantNotice("Przypomnienie: tak");
+
+        assertThat(send.executions).isZero();
+        assertThat(agent.hasPendingConfirmation()).isTrue();
+    }
+
+    @Test
+    void fastPathHandlesCommandWithoutCallingTheModel() {
+        FakeLlm llm = new FakeLlm();
+        AgentRuntime agent = agentWith(llm, new ToolRegistry(), new AutoDenyConfirmationService());
+        agent.addFastPath(text -> text.contains("youtube")
+                ? java.util.Optional.of(new FastPath.Handled("Otwieram YouTube.",
+                        ToolExecution.of("open_url", Map.of(), true, "ok", 0)))
+                : java.util.Optional.empty());
+
+        AgentResult result = agent.process("otwórz youtube");
+
+        assertThat(result.text()).isEqualTo("Otwieram YouTube.");
+        assertThat(llm.lastRequest()).isNull();
+    }
+
+    private static class MutableClock extends java.time.Clock {
+        private java.time.Instant now = java.time.Instant.parse("2026-11-26T10:00:00Z");
+        void advance(java.time.Duration d) { now = now.plus(d); }
+        @Override public java.time.ZoneId getZone() { return java.time.ZoneOffset.UTC; }
+        @Override public java.time.Clock withZone(java.time.ZoneId zone) { return this; }
+        @Override public java.time.Instant instant() { return now; }
     }
 
     // ─── Robustness ──────────────────────────────────────────────

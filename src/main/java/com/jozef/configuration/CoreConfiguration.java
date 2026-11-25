@@ -2,6 +2,11 @@ package com.jozef.configuration;
 
 import com.jozef.assistant.AssistantCapability;
 import com.jozef.automation.AutomationCapability;
+import com.jozef.automation.apps.InstalledAppsCatalog;
+import com.jozef.automation.apps.WindowsStartAppsCatalog;
+import com.jozef.automation.launch.Launcher;
+import com.jozef.shortcuts.QuickCommands;
+import com.jozef.shortcuts.ShortcutStore;
 import com.jozef.browser.BrowserCapability;
 import com.jozef.core.agent.AgentRuntime;
 import com.jozef.core.builtin.GetTimeAction;
@@ -217,8 +222,8 @@ public class CoreConfiguration {
     // ─── Capabilities ──────────────────────────────
 
     @Bean
-    public SpeechCapability speechCapability(JozefProperties props) {
-        return new SpeechCapability(props.speech(), props.wakeword());
+    public SpeechCapability speechCapability(JozefProperties props, LLMCapability llmCapability) {
+        return new SpeechCapability(props.speech(), props.wakeword(), llmCapability.resolvedProvider());
     }
 
     @Bean
@@ -227,8 +232,42 @@ public class CoreConfiguration {
     }
 
     @Bean
-    public AutomationCapability automationCapability(JozefProperties props, ToolRegistry toolRegistry) {
-        return new AutomationCapability(props.automation(), toolRegistry);
+    public AutomationCapability automationCapability(JozefProperties props, ToolRegistry toolRegistry,
+                                                     Launcher launcher, ShortcutStore shortcutStore) {
+        return new AutomationCapability(props.automation(), toolRegistry, launcher, shortcutStore);
+    }
+
+    // ─── Launching sites & apps / user shortcuts ─────
+
+    @Bean
+    public InstalledAppsCatalog installedAppsCatalog() {
+        if (!System.getProperty("os.name", "").toLowerCase().contains("win")) {
+            return InstalledAppsCatalog.empty();
+        }
+        WindowsStartAppsCatalog catalog = new WindowsStartAppsCatalog();
+        // Warm the cache off the startup path (~1 s PowerShell scan).
+        Thread warmup = new Thread(catalog::apps, "jozef-apps-scan");
+        warmup.setDaemon(true);
+        warmup.start();
+        return catalog;
+    }
+
+    @Bean
+    public Launcher launcher(InstalledAppsCatalog catalog) {
+        return new Launcher(catalog, Launcher.windowsOpener(), null);
+    }
+
+    @Bean
+    public ShortcutStore shortcutStore(@Value("${jozef.shortcuts.file:data/shortcuts.yml}") String file) {
+        return new ShortcutStore(file);
+    }
+
+    @Bean
+    public QuickCommands quickCommands(ShortcutStore shortcutStore, InstalledAppsCatalog catalog,
+                                       Launcher launcher, AgentRuntime agentRuntime) {
+        QuickCommands quick = new QuickCommands(shortcutStore, catalog, launcher);
+        agentRuntime.addFastPath(quick);
+        return quick;
     }
 
     @Bean

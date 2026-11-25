@@ -36,13 +36,24 @@ public class SpeechCapability implements Capability {
     private final WakeWordDetector wakeWordDetector;
 
     private final Function<String, String> env;
+    private final String llmProvider;
 
     public SpeechCapability(SpeechProperties props, WakeWordProperties wakeWord) {
-        this(props, wakeWord, System::getenv);
+        this(props, wakeWord, null, System::getenv);
     }
 
-    SpeechCapability(SpeechProperties props, WakeWordProperties wakeWord, Function<String, String> env) {
+    /**
+     * @param llmProvider the language-model provider in use; "auto" TTS only sends
+     *                    speech to OpenAI when the conversation already goes there
+     */
+    public SpeechCapability(SpeechProperties props, WakeWordProperties wakeWord, String llmProvider) {
+        this(props, wakeWord, llmProvider, System::getenv);
+    }
+
+    SpeechCapability(SpeechProperties props, WakeWordProperties wakeWord, String llmProvider,
+                     Function<String, String> env) {
         this.env = env;
+        this.llmProvider = llmProvider;
         this.recognizer = createRecognizer(props);
         this.synthesizer = createSynthesizer(props);
         this.wakeWordDetector = createWakeWordDetector(props, wakeWord);
@@ -130,7 +141,9 @@ public class SpeechCapability implements Capability {
                 } else if (!"auto".equals(provider)) {
                     log.warn("Unknown TTS provider '{}' — using 'auto'.", provider);
                 }
-                if (hasOpenAi) {
+                // Privacy: answers are only sent to a cloud voice when the conversation
+                // already runs on that cloud; with a local model the voice stays local too.
+                if (hasOpenAi && "openai".equals(llmProvider)) {
                     chain.add(new OpenAiSpeechSynthesizer(openAiKey, voice));
                 }
                 chain.add(new WindowsSpeechSynthesizer());

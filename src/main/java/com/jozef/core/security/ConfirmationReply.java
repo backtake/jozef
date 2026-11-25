@@ -1,54 +1,88 @@
 package com.jozef.core.security;
 
-import java.text.Normalizer;
-import java.util.Locale;
+import com.jozef.core.util.TextNormalizer;
+
+import java.util.Collection;
+import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
- * Deterministic classification of the user's answer to "should I do it?".
+ * Deterministic classification of the user's answer to "Mam to zrobić?".
  *
- * Deliberately conservative: only short, unambiguous replies count. Anything
- * else is {@link Kind#OTHER} — the pending action is then dropped and the
- * utterance handled as a new request. The model never decides this.
+ * <ul>
+ *   <li>NO wins: any veto word anywhere ("nie", "anuluj", "zamiast", "poczekaj"…) means NO
+ *       when the reply is short, otherwise OTHER — never YES.</li>
+ *   <li>YES: the reply starts with an affirmative ("tak…", "jasne…", "oczywiście…",
+ *       "no tak", "dawaj") and is short; or it is the action verb of the parked
+ *       tool ("wyślij" only approves sending, "usuń" only deleting).</li>
+ *   <li>Everything else is OTHER — the pending action is dropped.</li>
+ * </ul>
+ * The model never takes part in this decision.
  */
 public final class ConfirmationReply {
 
     public enum Kind { YES, NO, OTHER }
 
-    private static final Pattern NON_LETTERS = Pattern.compile("[^a-z0-9 ]");
-    private static final Pattern DIACRITICS = Pattern.compile("\\p{M}");
+    private static final int MAX_WORDS = 6;
 
-    private static final Set<String> YES = Set.of(
-            "tak", "t", "ta", "no tak", "tak tak", "jasne", "pewnie", "ok", "okej", "okay", "dobrze",
-            "potwierdzam", "zatwierdzam", "zgoda", "zgadzam sie", "dawaj", "rob", "zrob to", "zrob",
-            "wykonaj", "wyslij", "usun", "tak wyslij", "tak usun", "tak zrob to", "tak potwierdzam",
-            "tak prosze", "prosze", "mozesz", "dalej", "yes", "y", "yep", "sure", "do it", "confirm", "go");
+    private static final List<String> YES_STARTS = List.of(
+            "tak", "jasne", "oczywiscie", "pewnie", "potwierdzam", "zatwierdzam", "zgoda", "zgadzam sie",
+            "dawaj", "smialo", "no tak", "no jasne", "ok", "okej", "okay", "dobrze", "dobra", "zrob to",
+            "rob", "wykonaj", "prosze bardzo", "yes", "yep", "sure", "do it", "confirm");
 
-    private static final Set<String> NO = Set.of(
-            "nie", "n", "nie nie", "nie rob", "nie rob tego", "nie wysylaj", "nie usuwaj", "anuluj",
-            "stop", "przestan", "zostaw", "odwolaj", "rezygnuje", "nie trzeba", "nie dziekuje",
-            // "no" is deliberately absent: in Polish it colloquially means "yeah".
-            "nope", "cancel", "abort");
+    /** Words that always veto. "no" is deliberately absent: in Polish it means "yeah". */
+    private static final Set<String> VETO = Set.of(
+            "nie", "anuluj", "anulowac", "stop", "przestan", "zostaw", "odwolaj", "rezygnuje",
+            "zamiast", "ale", "poczekaj", "czekaj", "zaczekaj", "zmien", "popraw", "inaczej", "wstrzymaj",
+            "cancel", "abort", "nope", "dont", "wait");
+
+    private static final Set<String> NO_ONLY = Set.of(
+            "nie", "n", "nie nie", "nie rob tego", "nie rob", "anuluj", "stop", "przestan", "zostaw",
+            "odwolaj", "rezygnuje", "nie trzeba", "nie dziekuje", "nie wysylaj", "nie usuwaj", "cancel",
+            "abort", "nope", "nie teraz", "jednak nie", "lepiej nie");
 
     private ConfirmationReply() {}
 
     public static Kind classify(String utterance) {
-        String n = normalize(utterance);
+        return classify(utterance, List.of());
+    }
+
+    public static Kind classify(String utterance, Collection<String> pendingTools) {
+        String n = strip(TextNormalizer.normalize(utterance));
         if (n.isEmpty()) return Kind.OTHER;
-        if (YES.contains(n)) return Kind.YES;
-        if (NO.contains(n)) return Kind.NO;
+        String[] words = n.split(" ");
+
+        if (NO_ONLY.contains(n)) return Kind.NO;
+        for (String w : words) {
+            if (VETO.contains(w)) {
+                return words.length <= 3 ? Kind.NO : Kind.OTHER;
+            }
+        }
+        if (words.length > MAX_WORDS) return Kind.OTHER;
+
+        for (String start : YES_STARTS) {
+            if (n.equals(start) || n.startsWith(start + " ")) return Kind.YES;
+        }
+        if (words.length <= 3 && matchesActionVerb(words[0], pendingTools)) return Kind.YES;
         return Kind.OTHER;
     }
 
-    static String normalize(String text) {
-        if (text == null) return "";
-        String s = text.toLowerCase(Locale.ROOT).replace('ł', 'l');
-        s = DIACRITICS.matcher(Normalizer.normalize(s, Normalizer.Form.NFD)).replaceAll("");
-        s = NON_LETTERS.matcher(s).replaceAll(" ").trim().replaceAll(" +", " ");
-        // Drop the wake-word/name prefix the recogniser may keep ("jozef tak").
-        for (String prefix : new String[]{"hej jozef ", "jozef ", "jozefie "}) {
-            if (s.startsWith(prefix)) s = s.substring(prefix.length());
+    private static boolean matchesActionVerb(String verb, Collection<String> tools) {
+        if (tools == null || tools.isEmpty()) return false;
+        for (String tool : tools) {
+            String t = tool.toLowerCase();
+            if ((t.contains("send") || t.contains("reply")) && verb.matches("wyslij|wysylaj|wyslac|odpowiedz")) return true;
+            if (t.contains("delete") && verb.matches("usun|usuwaj|skasuj|kasuj")) return true;
+            if ((t.contains("create") || t.contains("add")) && verb.matches("dodaj|utworz|stworz|zapisz|wpisz")) return true;
+            if (t.contains("update") && verb.matches("zaktualizuj|przesun|przesunac")) return true;
+        }
+        return false;
+    }
+
+    /** Drop the name/wake-word prefix the recogniser may keep ("jozef tak"). */
+    private static String strip(String s) {
+        for (String prefix : new String[]{"hej jozef ", "jozefie ", "jozef "}) {
+            if (s.startsWith(prefix)) return s.substring(prefix.length());
         }
         return s;
     }

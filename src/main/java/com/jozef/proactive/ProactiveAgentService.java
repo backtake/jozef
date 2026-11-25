@@ -1,6 +1,5 @@
 package com.jozef.proactive;
 
-import com.jozef.core.agent.AgentResult;
 import com.jozef.core.agent.AgentRuntime;
 import com.jozef.core.events.EventBus;
 import com.jozef.speech.SpeechCapability;
@@ -8,10 +7,13 @@ import com.jozef.speech.SpeechTextCleaner;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Injects a proactive message into the agent loop and speaks the answer.
+ * Delivers proactive notices (reminders, upcoming meetings, new mail) to the user.
  *
- * Used by timers and watchers (calendar/gmail) so Jozef can act on its own,
- * not only in response to a voice command.
+ * Notices are spoken as-is and recorded in the conversation as something Jozef
+ * said. They deliberately do NOT go through the reasoning loop: an e-mail subject
+ * or a reminder text is data, not an instruction — routing it to the model as a
+ * user message would let any sender steer Jozef (or answer a pending "Mam
+ * wysłać?" with "tak").
  */
 @Slf4j
 public class ProactiveAgentService {
@@ -26,19 +28,20 @@ public class ProactiveAgentService {
         this.eventBus = eventBus;
     }
 
-    public void trigger(String message) {
-        if (message == null || message.isBlank()) {
+    /** Speak a notice to the user (kept for the watchers' existing callers). */
+    public void trigger(String notice) {
+        if (notice == null || notice.isBlank()) {
             return;
         }
-        eventBus.publish(new ProactiveEvent(message));
+        eventBus.publish(new ProactiveEvent(notice));
         try {
-            AgentResult result = agent.process(message);
-            String text = SpeechTextCleaner.clean(result.text());
+            agent.recordAssistantNotice(notice);
+            String text = SpeechTextCleaner.clean(notice);
             if (!text.isBlank()) {
                 speech.synthesizer().speak(text);
             }
         } catch (Exception e) {
-            log.error("Proactive trigger failed: {}", e.getMessage(), e);
+            log.error("Proactive notice failed: {}", e.getMessage(), e);
         }
     }
 }

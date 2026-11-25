@@ -87,10 +87,18 @@ public class WindowsAutomationService implements DesktopAutomation {
             case "notepad", "notatnik" -> "notepad.exe";
             case "calculator", "kalkulator" -> "CalculatorApp.exe";
             case "explorer", "file explorer" -> "explorer.exe";
-            default -> nameOrProcess;
+            default -> nameOrProcess.trim();
         };
+        // No wildcards ("*" would match every process) and no paths/switches.
+        if (!process.matches("[\\p{L}\\p{N} ._()-]{1,64}") || process.startsWith("-") || process.startsWith("/")) {
+            throw new IllegalArgumentException("Not a valid process name: " + nameOrProcess);
+        }
+        if (!process.toLowerCase().endsWith(".exe")) {
+            process = process + ".exe";
+        }
         try {
-            Runtime.getRuntime().exec(new String[]{"taskkill", "/IM", process, "/F"});
+            // Graceful close (WM_CLOSE) — the app may still ask to save; never /F, which loses unsaved work.
+            Runtime.getRuntime().exec(new String[]{"taskkill", "/IM", process});
             log.info("Requested close of: {} ({})", nameOrProcess, process);
         } catch (Exception e) {
             log.error("Failed to close application: {}", nameOrProcess, e);

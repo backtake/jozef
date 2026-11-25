@@ -2,6 +2,10 @@ package com.jozef.automation;
 
 import com.jozef.automation.actions.CloseApplicationAction;
 import com.jozef.automation.actions.OpenApplicationAction;
+import com.jozef.automation.actions.OpenUrlAction;
+import com.jozef.automation.launch.Launcher;
+import com.jozef.shortcuts.ShortcutStore;
+import com.jozef.shortcuts.ShortcutTools;
 import com.jozef.automation.actions.PressKeysAction;
 import com.jozef.automation.actions.ScreenshotAction;
 import com.jozef.automation.actions.SearchWebAction;
@@ -22,11 +26,16 @@ public class AutomationCapability implements Capability {
 
     private final AutomationProperties props;
     private final ToolRegistry toolRegistry;
+    private final Launcher launcher;
+    private final ShortcutStore shortcuts;
     private DesktopAutomation automation;
 
-    public AutomationCapability(AutomationProperties props, ToolRegistry toolRegistry) {
+    public AutomationCapability(AutomationProperties props, ToolRegistry toolRegistry,
+                                Launcher launcher, ShortcutStore shortcuts) {
         this.props = props;
         this.toolRegistry = toolRegistry;
+        this.launcher = launcher;
+        this.shortcuts = shortcuts;
     }
 
     public DesktopAutomation automation() {
@@ -48,16 +57,21 @@ public class AutomationCapability implements Capability {
         String platform = props.platform() == null ? "windows" : props.platform();
         log.info("Initializing automation: platform={}", platform);
 
+        // Opening sites/apps needs no keyboard/mouse control — register it first so it
+        // keeps working even where AWT Robot is unavailable.
+        toolRegistry.register(new OpenApplicationAction(launcher, shortcuts));
+        toolRegistry.register(new OpenUrlAction(launcher, shortcuts));
+        toolRegistry.register(new SearchWebAction(launcher));
+        ShortcutTools.create(shortcuts).forEach(toolRegistry::register);
+
         automation = switch (platform.toLowerCase()) {
             case "windows" -> new WindowsAutomationService();
             default -> throw new IllegalArgumentException("Unknown automation platform: " + platform);
         };
 
-        toolRegistry.register(new OpenApplicationAction(automation));
         toolRegistry.register(new CloseApplicationAction(automation));
         toolRegistry.register(new TypeTextAction(automation));
         toolRegistry.register(new PressKeysAction(automation));
-        toolRegistry.register(new SearchWebAction());
         toolRegistry.register(new ScreenshotAction(automation));
 
         log.info("Automation capability initialized — {} tools registered", toolRegistry.size());

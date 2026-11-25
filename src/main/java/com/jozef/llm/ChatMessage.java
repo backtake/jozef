@@ -39,15 +39,7 @@ public record ChatMessage(
                 toolCalls == null ? List.of() : List.copyOf(toolCalls), null);
     }
 
-    public static ChatMessage tool(String content) {
-        return new ChatMessage("tool", content, null, null, null);
-    }
-
-    public static ChatMessage tool(String toolName, String content) {
-        return new ChatMessage("tool", content, toolName, null, null);
-    }
-
-    /** Result of a specific tool call — preferred: carries the call id providers require. */
+    /** Result of a specific tool call — carries the call id providers require. */
     public static ChatMessage toolResult(ToolCall call, String content) {
         return new ChatMessage("tool", content, call.name(), null, call.id());
     }

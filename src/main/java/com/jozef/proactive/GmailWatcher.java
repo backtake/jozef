@@ -37,7 +37,7 @@ public class GmailWatcher {
         try {
             for (GmailMessage message : gmail.listRecent(maxResults, "is:unread")) {
                 if (message.id() != null && notified.add(message.id())) {
-                    agent.trigger("Nowy e-mail od " + message.from() + ": " + message.subject());
+                    agent.trigger("Masz nowego maila od " + message.from() + ". Temat: " + message.subject() + ".");
                 }
             }
         } catch (Exception e) {

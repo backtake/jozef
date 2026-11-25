@@ -30,10 +30,22 @@ class SpeechCapabilityTest {
                 new SpeechProperties.SttProperties("console", null, false),
                 new SpeechProperties.TtsProperties("auto", "ash"), null);
 
-        SpeechCapability capability = new SpeechCapability(props, new WakeWordProperties(false, "x"),
+        SpeechCapability capability = new SpeechCapability(props, new WakeWordProperties(false, "x"), "openai",
                 name -> "OPENAI_API_KEY".equals(name) ? "sk-test" : null);
 
         assertThat(capability.synthesizer().name()).startsWith("openai");
+    }
+
+    @Test
+    void autoTtsStaysLocalWhenTheConversationRunsOnALocalModel() {
+        SpeechProperties props = new SpeechProperties(
+                new SpeechProperties.SttProperties("console", null, false),
+                new SpeechProperties.TtsProperties("auto", "ash"), null);
+
+        SpeechCapability capability = new SpeechCapability(props, new WakeWordProperties(false, "x"), "ollama",
+                name -> "OPENAI_API_KEY".equals(name) ? "sk-test" : null);
+
+        assertThat(capability.synthesizer().name()).doesNotContain("openai");
     }
 
     @Test
@@ -42,7 +54,7 @@ class SpeechCapabilityTest {
                 new SpeechProperties.SttProperties("console", null, false),
                 new SpeechProperties.TtsProperties("edge", "pl-PL-ZofiaNeural"), null);
 
-        SpeechCapability capability = new SpeechCapability(props, new WakeWordProperties(false, "x"), name -> null);
+        SpeechCapability capability = new SpeechCapability(props, new WakeWordProperties(false, "x"), "ollama", name -> null);
 
         assertThat(capability.synthesizer().name()).doesNotContain("edge");
     }

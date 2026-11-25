@@ -4,6 +4,7 @@ import com.jozef.core.agent.AgentResult;
 import com.jozef.core.agent.AgentRuntime;
 import com.jozef.core.events.AgentEvents;
 import com.jozef.core.events.EventBus;
+import com.jozef.core.security.ConfirmationReply;
 import com.jozef.speech.SpeechRecognizer;
 import com.jozef.speech.SpeechSynthesizer;
 import com.jozef.speech.SpeechTextCleaner;
@@ -23,8 +24,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class VoiceLoop implements Runnable {
 
-    private static final Set<String> EXIT_PHRASES =
-            Set.of("exit", "quit", "wyjście", "wyjscie", "koniec", "stop");
+    /**
+     * Typed-only escape hatch for the console. Everyday words such as "stop" or
+     * "koniec" must never shut the assistant down (they also answer "Mam to zrobić?");
+     * a background Jozef is closed from the tray.
+     */
+    private static final Set<String> EXIT_PHRASES = Set.of("exit", "quit");
 
     private final AgentRuntime agent;
     private final SpeechRecognizer recognizer;
@@ -56,7 +61,8 @@ public class VoiceLoop implements Runnable {
                 eventBus.publish(new AgentEvents.ListeningStarted());
 
                 String input;
-                if (wakeWordDetector != null) {
+                boolean awaitingAnswer = wakeWordDetector != null && agent.hasPendingConfirmation();
+                if (wakeWordDetector != null && !awaitingAnswer) {
                     input = wakeWordDetector.awaitWakeWord();
                     if (input == null || input.isBlank()) {
                         // User said only the wake word — now listen for the command.
@@ -69,6 +75,12 @@ public class VoiceLoop implements Runnable {
                 if (input == null || input.isBlank()) {
                     continue;
                 }
+                // Jozef just asked "Mam to zrobić?" — the answer needs no wake word, but
+                // other speech in the room (TV, people) must not become a command.
+                if (awaitingAnswer && ConfirmationReply.classify(input) == ConfirmationReply.Kind.OTHER) {
+                    log.debug("Ignoring speech while waiting for yes/no: {}", input);
+                    continue;
+                }
                 if (isExitPhrase(input)) {
                     log.info("Exit phrase received: {}", input);
                     running.set(false);
@@ -77,7 +89,7 @@ public class VoiceLoop implements Runnable {
 
                 AgentResult result = agent.process(input);
                 String text = (result.text() == null || result.text().isBlank())
-                        ? "Done."
+                        ? "Gotowe."
                         : SpeechTextCleaner.clean(result.text());
                 eventBus.publish(new AgentEvents.SpeechSynthesisStarted(text));
                 synthesizer.speak(text);

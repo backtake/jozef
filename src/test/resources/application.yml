@@ -23,3 +23,5 @@ jozef:
       provider: console
   automation:
     platform: windows
+  shortcuts:
+    file: build/test-data/shortcuts.yml

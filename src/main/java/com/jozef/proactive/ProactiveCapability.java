@@ -70,7 +70,7 @@ public class ProactiveCapability implements Capability {
             t.setDaemon(true);
             return t;
         });
-        timerScheduler = new InMemoryTimerScheduler(executor, agent::trigger);
+        timerScheduler = new InMemoryTimerScheduler(executor, message -> agent.trigger("Przypomnienie: " + message));
         registerTools();
 
         if (google != null && google.calendar() != null) {

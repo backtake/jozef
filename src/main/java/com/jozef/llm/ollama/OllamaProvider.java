@@ -169,7 +169,7 @@ public class OllamaProvider implements LLMProvider {
                 Map<String, Object> function = (Map<String, Object>) tc.get("function");
                 if (function == null) continue;
 
-                String name = (String) function.get("name");
+                if (!(function.get("name") instanceof String name) || name.isBlank()) continue;
                 Map<String, Object> arguments = parseArguments(function.get("arguments"));
                 toolCalls.add(ToolCall.of(name, arguments));
             }
@@ -179,12 +179,17 @@ public class OllamaProvider implements LLMProvider {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> parseArguments(Object raw) throws Exception {
+    private Map<String, Object> parseArguments(Object raw) {
         if (raw == null) return Map.of();
         if (raw instanceof Map<?, ?> map) return (Map<String, Object>) map;
         if (raw instanceof String str) {
             if (str.isBlank()) return Map.of();
-            return mapper.readValue(str, new TypeReference<>() {});
+            try {
+                return mapper.readValue(str, new TypeReference<>() {});
+            } catch (Exception e) {
+                log.warn("ollama: malformed tool arguments ignored: {}", str);
+                return Map.of();
+            }
         }
         return Map.of();
     }
