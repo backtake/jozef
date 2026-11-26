@@ -14,6 +14,7 @@ import com.jozef.core.security.ConfirmationReply;
 import com.jozef.core.security.ConfirmationService;
 import com.jozef.core.security.ConversationalConfirmationService;
 import com.jozef.core.security.PermissionManager;
+import com.jozef.core.security.UntrustedContentPolicy;
 import com.jozef.core.session.SessionManager;
 import com.jozef.core.tool.ToolDefinition;
 import com.jozef.core.tool.ToolRegistry;
@@ -88,6 +89,8 @@ public class AgentRuntime implements AutoCloseable {
     private String currentChannel = LOCAL_CHANNEL;
     /** Another channel's open question, set aside during this turn (under {@code this} lock). */
     private PendingConfirmation otherChannelPending;
+    /** Third-party text (web/mail/invites) entered the conversation in this turn (under {@code this} lock). */
+    private UntrustedContentPolicy.Taint taintThisTurn = UntrustedContentPolicy.Taint.NONE;
 
     /**
      * Tools run on one dedicated thread (thread-confined libraries such as Playwright
@@ -177,6 +180,7 @@ public class AgentRuntime implements AutoCloseable {
         }
         currentChannel = channel == null ? LOCAL_CHANNEL : channel;
         otherChannelPending = null; // never resurrect a question left over by a turn that failed with an exception
+        taintThisTurn = UntrustedContentPolicy.Taint.NONE;
 
         eventBus.publish(new AgentEvents.UserCommandReceived(userMessage));
         List<ChatMessage> history = historyMessages();
@@ -408,6 +412,11 @@ public class AgentRuntime implements AutoCloseable {
         }
 
         ExecutionStrategy strategy = action.strategyFor(arguments);
+        if (strategy == ExecutionStrategy.SAFE && UntrustedContentPolicy.needsConfirmation(action, taintThisTurn)) {
+            // Third-party text (a page, an e-mail) was read in this turn and may be steering the
+            // model: saving memory or opening an address now needs the user's yes.
+            strategy = ExecutionStrategy.CONFIRM;
+        }
         if (confirmationService.requiresConfirmation(strategy)) {
             eventBus.publish(new AgentEvents.ConfirmationRequested(toolName, arguments, strategy.name()));
 
@@ -495,6 +504,9 @@ public class AgentRuntime implements AutoCloseable {
         ToolExecution execution = ToolExecution.of(toolName, arguments, result.success(), result.message(),
                 System.currentTimeMillis() - start);
         recordOutcome(execution);
+        if (execution.success()) {
+            taintThisTurn = UntrustedContentPolicy.max(taintThisTurn, UntrustedContentPolicy.taintOf(action));
+        }
         return execution;
     }
 

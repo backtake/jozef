@@ -45,10 +45,12 @@ public class CalendarWatcher {
                     continue;
                 }
                 if (shouldNotify(event, now, lookahead) && notified.add(event.id())) {
-                    agent.trigger("Przypomnienie z kalendarza: " + event.summary()
-                            + " (start " + event.start() + ")");
+                    agent.trigger("Przypomnienie z kalendarza: " + event.summary() + ", "
+                            + com.jozef.core.util.SpokenDates.range(event.start(), null) + ".");
                 }
             }
+        } catch (com.jozef.google.auth.GoogleNotSignedInException e) {
+            log.debug("Calendar watcher: Google not signed in yet — skipping.");
         } catch (Exception e) {
             log.warn("Calendar check failed: {}", e.getMessage());
         }

@@ -49,6 +49,12 @@ public class VoiceLoop implements Runnable {
     private final SpeakingMonitor speakingMonitor;
     private final String wakeWord;
     private boolean remindedYesNo;
+    private volatile boolean exitRequested;
+
+    /** True when the user typed "exit" in the console (the whole app should stop). */
+    public boolean exitRequested() {
+        return exitRequested;
+    }
 
     public VoiceLoop(AgentRuntime agent, SpeechRecognizer recognizer, SpeechSynthesizer synthesizer,
                      EventBus eventBus, WakeWordDetector wakeWordDetector) {
@@ -195,6 +201,7 @@ public class VoiceLoop implements Runnable {
                 if (isExitPhrase(input)) {
                     log.info("Exit phrase received: {}", input);
                     running.set(false);
+                    exitRequested = true;
                     break;
                 }
 

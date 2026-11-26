@@ -29,6 +29,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
     private final EventBus eventBus;
     private final ShortcutStore shortcuts;
     private final com.jozef.google.GoogleCapability google;
+    private final com.jozef.core.tool.ToolRegistry toolRegistry;
     private final String wakeWord;
 
     public JozefBootstrapRunner(ApplicationLifecycle lifecycle,
@@ -38,6 +39,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
                                 EventBus eventBus,
                                 ShortcutStore shortcuts,
                                 com.jozef.google.GoogleCapability google,
+                                com.jozef.core.tool.ToolRegistry toolRegistry,
                                 @Value("${jozef.wakeword.word:hej jozef}") String wakeWord) {
         this.wakeWord = wakeWord;
         this.lifecycle = lifecycle;
@@ -47,6 +49,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
         this.eventBus = eventBus;
         this.shortcuts = shortcuts;
         this.google = google;
+        this.toolRegistry = toolRegistry;
     }
 
     @Override
@@ -60,7 +63,11 @@ public class JozefBootstrapRunner implements CommandLineRunner {
         // Start the voice loop on a background thread
         VoiceLoop voiceLoop = new VoiceLoop(agent, speech.recognizer(), speech.synthesizer(), eventBus,
                 speech.wakeWordDetector(), speech.speakingMonitor(), wakeWord);
-        Thread voiceThread = new Thread(voiceLoop, "jozef-voice-loop");
+        Thread voiceThread = new Thread(() -> {
+            voiceLoop.run();
+            // "exit" typed in the console ends Jozef (UI threads would otherwise keep the JVM alive).
+            if (voiceLoop.exitRequested()) System.exit(0);
+        }, "jozef-voice-loop");
         voiceThread.setDaemon(false); // keep app alive
         voiceThread.start();
 
@@ -70,6 +77,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
                 : null;
         if (commandWindow != null) {
             eventBus.register(CoreEvents.HotkeyPressed.class, e -> commandWindow.toggle());
+            showWelcomeOnFirstRun(commandWindow);
         }
         eventBus.register(CoreEvents.UiRequest.class, request -> {
             switch (request.kind()) {
@@ -94,6 +102,39 @@ public class JozefBootstrapRunner implements CommandLineRunner {
         }, "jozef-shutdown"));
 
         log.info("Jozef runtime is active. Voice loop running; command window on the global hotkey.");
+    }
+
+    /** First start only: what Jozef can do, how to reach it, and what still needs setting up. */
+    private void showWelcomeOnFirstRun(CommandWindow window) {
+        java.nio.file.Path marker = java.nio.file.Path.of("data", "welcome-shown");
+        if (java.nio.file.Files.exists(marker)) return;
+        try {
+            java.nio.file.Files.createDirectories(marker.getParent());
+            java.nio.file.Files.writeString(marker, java.time.Instant.now().toString());
+        } catch (Exception e) {
+            log.debug("Cannot write {}: {}", marker, e.getMessage());
+        }
+        String status;
+        try {
+            status = toolRegistry.execute("jozef_status", java.util.Map.of()).message();
+        } catch (Exception e) {
+            status = "";
+        }
+        window.showWelcome("""
+                Cześć, jestem Józef — Twój asystent. Działam w tle (ikona obok zegara).
+
+                Jak do mnie mówić:
+                • głosem: „hej Józef, …”
+                • pisząc: Ctrl+Alt+J otwiera to okienko
+                • z telefonu: bot Telegram (instrukcja w README)
+
+                Spróbuj: „otwórz YouTube”, „jaka jutro pogoda w Krakowie?”, „przypomnij mi za 20 minut o praniu”,
+                „zapamiętaj, że lubię kawę bez cukru”, „głośniej”, „połącz się z Google”, „co u ciebie działa?”.
+
+                Zanim wyślę maila, usunę coś z kalendarza albo nacisnę Enter za Ciebie — zawsze zapytam.
+
+                Mój stan:
+                """ + status);
     }
 
     private void openInEditor(String path) {

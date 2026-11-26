@@ -75,7 +75,7 @@ jozef:
     enabled: true
     headless: true                 # true = czytanie stron w tle (strony dla użytkownika otwiera open_url w jego przeglądarce)
     channel: chrome                # chrome | msedge | (puste = bundled chromium)
-    profile-dir: ""                # opcjonalny trwały profil (zalogowane sesje)
+    profile-dir: ""                # ZOSTAW PUSTE: czytanie stron w tle nie powinno mieć dostępu do Twoich zalogowanych kont
     executable-path: ""            # ścieżka do binary (np. Brave) — nadpisuje channel
 
   # ─── Google (OAuth + Calendar + Gmail) ────────────────

@@ -59,14 +59,17 @@ class WatchersTest {
     void gmailTriggersEachMessageOnlyOnce() {
         GmailService gmail = mock(GmailService.class);
         ProactiveAgentService agent = mock(ProactiveAgentService.class);
+        GmailMessage old = new GmailMessage("m0", "t0", "Bob", "Stary", "snippet", null);
         GmailMessage message = new GmailMessage("m1", "t1", "Alice", "Temat", "snippet", null);
-        when(gmail.listRecent(10, "is:unread")).thenReturn(List.of(message));
+        when(gmail.listRecent(10, "is:unread")).thenReturn(List.of(old), List.of(old, message), List.of(old, message));
 
         GmailWatcher watcher = new GmailWatcher(gmail, agent, 10);
-        watcher.check();
+        watcher.check(); // startup: the inbox already had "old" — not announced
+        watcher.check(); // "message" arrived
         watcher.check();
 
         verify(agent, times(1)).trigger(contains("Alice"));
+        verify(agent, times(0)).trigger(contains("Bob"));
     }
 
     private static CalendarEvent event(String id, String start) {

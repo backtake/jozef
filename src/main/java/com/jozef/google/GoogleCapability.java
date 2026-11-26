@@ -164,7 +164,11 @@ public class GoogleCapability implements Capability {
                         + "or connect Google, or a Gmail/Calendar request fails because Google is not connected.",
                 null, Set.of("GOOGLE_SETUP"), ExecutionStrategy.SAFE,
                 ctx -> {
-                    if (auth != null) return ActionResult.ok("Google is already connected.");
+                    if (auth != null) {
+                        if (auth.isSignedIn()) return ActionResult.ok("Google is already connected.");
+                        auth.startSignIn();
+                        return ActionResult.ok("A browser window with the Google sign-in opened — tell the user to approve access.");
+                    }
                     return startSetupInBackground()
                             ? ActionResult.ok("Google setup started: a browser window opened with Google Cloud Console. "
                             + "Tell the user to create an OAuth client ID of type Desktop app and click Download JSON; "
@@ -334,7 +338,20 @@ public class GoogleCapability implements Capability {
     private LambdaAction action(String name, String description, Map<String, Object> schema,
                           Set<String> permissions, ExecutionStrategy strategy,
                           Function<ActionContext, ActionResult> executor) {
-        return new LambdaAction(name, description, schema, permissions, strategy, executor);
+        // A user asked for Gmail/Calendar: if not signed in yet, open the consent screen in the
+        // background (an explicit user action) and answer at once instead of blocking Jozef.
+        Function<ActionContext, ActionResult> guarded = ctx -> {
+            try {
+                return executor.apply(ctx);
+            } catch (com.jozef.google.auth.GoogleNotSignedInException e) {
+                boolean started = auth != null && auth.startSignIn();
+                return ActionResult.fail(started
+                        ? "Google is not signed in yet. A browser window with the Google sign-in opened — tell the user "
+                        + "to approve access there and then repeat the request."
+                        : "Google sign-in is waiting in the browser — tell the user to finish it and repeat the request.");
+            }
+        };
+        return new LambdaAction(name, description, schema, permissions, strategy, guarded);
     }
 
     private static String require(ActionContext ctx, String key) {

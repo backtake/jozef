@@ -44,6 +44,31 @@ public class LambdaAction implements Action {
         return validation == null ? null : validation.apply(arguments == null ? Map.of() : arguments);
     }
 
+    private boolean untrustedOutput;
+    private boolean confirmAfterUntrusted;
+
+    /** Marks results as third-party text (web, mail, invites). */
+    public LambdaAction withUntrustedOutput() {
+        this.untrustedOutput = true;
+        return this;
+    }
+
+    /** Requires confirmation when third-party text was read earlier in the turn. */
+    public LambdaAction withConfirmAfterUntrusted() {
+        this.confirmAfterUntrusted = true;
+        return this;
+    }
+
+    @Override
+    public boolean returnsUntrustedContent() {
+        return untrustedOutput;
+    }
+
+    @Override
+    public boolean confirmAfterUntrustedContent() {
+        return confirmAfterUntrusted;
+    }
+
     public LambdaAction withTimeoutSeconds(int seconds) {
         this.timeoutSeconds = seconds;
         return this;

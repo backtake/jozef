@@ -64,22 +64,60 @@ public class GoogleAuthService {
         this.mapper = new ObjectMapper();
     }
 
+    private volatile Thread signInThread;
+
     /**
-     * Returns a valid access token, authenticating/refreshing as needed.
-     * Blocks during the interactive consent flow on first use.
+     * Returns a valid access token, refreshing it when expired (a quick network call).
+     * Never waits for the user: without tokens it throws {@link GoogleNotSignedInException}
+     * — call {@link #startSignIn()} from a user action to open the consent screen.
      */
     public synchronized String accessToken() {
         if (tokens == null) {
             tokens = tokenStore.load();
         }
         if (tokens == null) {
-            tokens = runAuthorizationFlow();
-            tokenStore.save(tokens);
-        } else if (tokens.isExpired()) {
+            throw new GoogleNotSignedInException();
+        }
+        if (tokens.isExpired()) {
             tokens = refreshAccessToken(tokens);
             tokenStore.save(tokens);
         }
         return tokens.accessToken();
+    }
+
+    /** True when tokens exist (signed in at least once and not signed out). */
+    public synchronized boolean isSignedIn() {
+        if (tokens == null) {
+            tokens = tokenStore.load();
+        }
+        return tokens != null;
+    }
+
+    /**
+     * Opens the Google consent screen and completes sign-in in the background. At most one
+     * flow at a time; no lock is held while waiting for the user, so Jozef keeps working.
+     *
+     * @return true when a new sign-in was started, false when one is already running or done
+     */
+    public synchronized boolean startSignIn() {
+        if (isSignedIn() || (signInThread != null && signInThread.isAlive())) {
+            return false;
+        }
+        signInThread = new Thread(() -> {
+            try {
+                GoogleTokens fresh = runAuthorizationFlow();
+                synchronized (GoogleAuthService.this) {
+                    tokens = fresh;
+                    tokenStore.save(fresh);
+                }
+                log.info("Google sign-in completed.");
+            } catch (Exception e) {
+                log.warn("Google sign-in did not complete: {}", e.getMessage());
+            }
+        }, "jozef-google-signin");
+        signInThread.setDaemon(true);
+        signInThread.start();
+        return true;
     }
 
     /**

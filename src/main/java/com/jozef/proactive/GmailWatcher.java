@@ -33,13 +33,20 @@ public class GmailWatcher {
         executor.scheduleWithFixedDelay(this::check, millis, millis, TimeUnit.MILLISECONDS);
     }
 
+    private boolean primed;
+
     void check() {
         try {
             for (GmailMessage message : gmail.listRecent(maxResults, "is:unread")) {
-                if (message.id() != null && notified.add(message.id())) {
+                // First pass only learns what is already unread — otherwise every start would
+                // announce the whole inbox. Later passes announce what really arrived since.
+                if (message.id() != null && notified.add(message.id()) && primed) {
                     agent.trigger("Masz nowego maila od " + message.from() + ". Temat: " + message.subject() + ".");
                 }
             }
+            primed = true;
+        } catch (com.jozef.google.auth.GoogleNotSignedInException e) {
+            log.debug("Gmail watcher: Google not signed in yet — skipping.");
         } catch (Exception e) {
             log.warn("Gmail check failed: {}", e.getMessage());
         }

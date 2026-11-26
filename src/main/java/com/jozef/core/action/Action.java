@@ -63,6 +63,24 @@ public interface Action {
         return null;
     }
 
+    /**
+     * True when the result contains text written by third parties (web pages, e-mails,
+     * calendar invites). After such a result the rest of the turn is treated as possibly
+     * steered by that text.
+     */
+    default boolean returnsUntrustedContent() {
+        return false;
+    }
+
+    /**
+     * True when this action must be confirmed if third-party text was read earlier in the
+     * same turn (saving memory, opening addresses — ways an injected instruction could
+     * persist itself or carry data out).
+     */
+    default boolean confirmAfterUntrustedContent() {
+        return false;
+    }
+
     /** Per-tool timeout in seconds; 0 = the agent default. */
     default int timeoutSeconds() {
         return 0;

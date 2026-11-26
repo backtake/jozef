@@ -80,6 +80,16 @@ public class CommandWindow {
         });
     }
 
+    /** Opens the window with an introductory message (first run). */
+    public void showWelcome(String text) {
+        if (!isSupported()) return;
+        SwingUtilities.invokeLater(() -> {
+            if (frame == null) build();
+            transcript.setText(text + "\n");
+            bringToFront();
+        });
+    }
+
     public void show() {
         if (!isSupported()) return;
         SwingUtilities.invokeLater(() -> {
