@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.11.0] - 2026-11-26 (nocny overhaul, gałąź jozef-overhaul)
+
+### Fixed (rzeczy, które nie działały)
+- Tool calling w OpenAI/DeepSeek (brak `tool_call_id` → HTTP 400 przy drugim kroku)
+- Błędy dostawcy LLM czytane użytkownikowi jako odpowiedź („Error: …”); brak timeoutów
+- Głos: Edge TTS zablokowany przez Microsoft → OpenAI TTS / Windows TTS (Paulina)
+- Brak daty i godziny w prompcie („co mam jutro?” nie mogło działać)
+- Potwierdzenia przez konsolę (niewykonalne w trayu) → potwierdzenia w rozmowie
+- Polecenie po „hej Józef” ginęło, gdy rozpoznawanie zapisało „józef” z „ó”; model Vosk ładowany dwa razy na komendę
+- „stop” zamykało aplikację; globalny skrót Ctrl+Alt+J nic nie robił
+- Każdy start bez konfiguracji Google otwierał Cloud Console i blokował start nawet na 10 min
+- Autostart: okno konsoli, zły katalog roboczy (dane szukane w System32)
+- Obserwator Gmaila ogłaszał całą skrzynkę przy każdym starcie
+
+### Added
+- Skróty (`data/shortcuts.yml`) i natychmiastowe polecenia bez modelu: „otwórz YouTube”, „uruchom Spotify”, „głośniej”
+- Programy z Menu Start, `open_url` w przeglądarce użytkownika, sterowanie multimediami, pogoda (Open-Meteo)
+- Okienko poleceń (Ctrl+Alt+J), menu w trayu (pauza mikrofonu, autostart, Google, skróty), powiadomienia Windows
+- Telefon: prywatny bot Telegram
+- Adapter Claude (Anthropic), tryb `auto` wyboru modelu, polskie komunikaty o przyczynach awarii
+- `gmail_reply`, `calendar_events_on_day`, `read_web_page`, `web_lookup`, `jozef_status`, `google_connect`
+- Powitanie przy pierwszym starcie, `jozef.cmd`, pojedyncza instancja
+
+### Security
+- Pytanie o potwierdzenie budowane w kodzie z prawdziwych argumentów, „tak/nie” deterministycznie, z wiązaniem do kanału
+- Proaktywne komunikaty nigdy nie trafiają do modelu jako polecenia
+- Śledzenie treści z zewnątrz w turze (WWW, maile): zapis pamięci i otwieranie adresów wymagają potwierdzenia
+- Blokada wstrzykiwania nagłówków w Gmailu, adresów lokalnych w `read_web_page`, ścieżek i skryptów w skrótach od modelu
+- Klawisze (Enter/Tab/Win…) i tekst z Enterem wymagają potwierdzenia
+
 ## [0.10.0] - 2025-10-28
 
 ### Changed

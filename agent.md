@@ -180,7 +180,20 @@ Konfiguracja: `src/main/resources/application.yml` (sekcja `jozef.*`). Sekrety t
 
 ## Punkt wznowienia (następna sesja)
 
-Zrobione w tej sesji — **fazy 18 i 19** (ostatnie z roadmapy):
+**26.11.2026 — nocny overhaul (gałąź `jozef-overhaul`).** Pełny dziennik, decyzje i problemy:
+`NIGHT_SHIFT.md`; zmiany: `CHANGELOG.md` 0.11.0; instrukcja: `README.md`. Najważniejsze:
+
+- Naprawione rzeczy, które w praktyce nie działały: tool calling OpenAI/DeepSeek, głos (Edge TTS
+  zablokowany przez Microsoft → OpenAI/Windows TTS), data w prompcie, potwierdzenia (rozmową zamiast
+  konsoli), blokujący start bez Google, autostart, gubienie polecenia po „hej Józef”.
+- Nowe kanały: okienko Ctrl+Alt+J, bot Telegram (telefon); szybkie polecenia bez modelu (skróty,
+  Menu Start, multimedia); pogoda, czytanie stron, odpowiedzi na maile, `jozef_status`, adapter Claude.
+- Bezpieczeństwo: potwierdzenia budowane w kodzie i wiązane z kanałem; treści z WWW/maili nie mogą
+  zatwierdzać ani trwale zapisywać instrukcji; proaktywne komunikaty nie idą do modelu.
+- Planner (fazy 19) domyślnie wyłączony — pętla agenta planuje sama.
+- **Konto OpenAI użytkownika nie ma środków** → działa fallback na lokalną Ollamę (słaby model).
+
+Poprzednia sesja — **fazy 18 i 19** (ostatnie z roadmapy):
 
 - ✅ **Faza 18: Proactive background agent** — `TimerScheduler`/`InMemoryTimerScheduler` (przypomnienia), `CalendarWatcher` + `GmailWatcher` (proaktywne powiadomienia), `ProactiveAgentService` (wstrzykuje zdarzenie do pętli agenta i mówi wynik). Tools: `set_timer`, `list_timers`, `cancel_timer`.
 - ✅ **Faza 19: Advanced planning** — `Planner` (LLM → JSON kroków), `PlanExecutor` (wykonanie z tą samą polityką uprawnień/potwierdzeń), `AutonomousPlanner` (plan → execute → observe → correct, `max-attempts`). Tools: `plan_task`, `list_plans`, `execute_plan`, `autonomous_task`.
@@ -194,4 +207,4 @@ Zrobione w tej sesji — **fazy 18 i 19** (ostatnie z roadmapy):
 1. Adaptery LLM `anthropic` / `gemini`.
 2. Polerowanie: overlay z przyciskami potwierdzeń, persystencja sesji/planów, testy integracyjne.
 
-Sekrety tylko przez zmienne środowiskowe: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+Sekrety tylko przez zmienne środowiskowe: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `TELEGRAM_BOT_TOKEN`.
