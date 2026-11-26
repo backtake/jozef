@@ -146,12 +146,12 @@ public class BrowserCapability implements Capability {
         }
         if (host == null) return false;
         String key = host.toLowerCase();
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
         HostVerdict cached = PUBLIC_HOSTS.get(key);
         if (cached != null && cached.expiresAt() > now) {
             return cached.isPublic();
         }
-        Boolean verdict = resolveVerdict(url);
+        Boolean verdict = classify(url);
         if (verdict == null) {
             return false; // lookup failed — refuse now, ask DNS again next time
         }
@@ -160,40 +160,54 @@ public class BrowserCapability implements Capability {
         return verdict;
     }
 
-    /** true/false when certain, {@code null} when the host could not be resolved right now. */
-    private static Boolean resolveVerdict(String url) {
+
+    /** True when every address the host resolves to is a public internet address. */
+    static boolean isPublicAddress(String url) {
+        return Boolean.TRUE.equals(classify(url));
+    }
+
+    /** Resolves host names; replaceable in tests. */
+    interface Resolver {
+        java.net.InetAddress[] resolve(String host) throws java.net.UnknownHostException;
+    }
+
+    static volatile Resolver resolver = java.net.InetAddress::getAllByName;
+    static volatile java.util.function.LongSupplier clock = System::currentTimeMillis;
+
+    /** true = public, false = local/private/invalid, {@code null} = cannot resolve right now. One lookup. */
+    static Boolean classify(String url) {
+        String host;
         try {
-            String host = java.net.URI.create(url).getHost();
-            java.net.InetAddress.getAllByName(host);
+            host = java.net.URI.create(url).getHost();
+        } catch (Exception e) {
+            return false;
+        }
+        if (host == null || host.isBlank()) return false;
+        String h = host.toLowerCase();
+        if (h.equals("localhost") || h.endsWith(".local") || h.endsWith(".localhost") || h.endsWith(".internal")
+                || h.endsWith(".lan") || h.endsWith(".home")) {
+            return false;
+        }
+        java.net.InetAddress[] addresses;
+        try {
+            addresses = resolver.resolve(host);
         } catch (java.net.UnknownHostException e) {
             return null;
         } catch (Exception e) {
             return false;
         }
-        return isPublicAddress(url);
-    }
-
-    /** True when every address the host resolves to is a public internet address. */
-    static boolean isPublicAddress(String url) {
-        try {
-            String host = java.net.URI.create(url).getHost();
-            if (host == null || host.isBlank()) return false;
-            String h = host.toLowerCase();
-            if (h.equals("localhost") || h.endsWith(".local") || h.endsWith(".localhost") || h.endsWith(".internal")
-                    || h.endsWith(".lan") || h.endsWith(".home")) {
+        if (addresses == null || addresses.length == 0) return null;
+        for (java.net.InetAddress a : addresses) {
+            if (a.isLoopbackAddress() || a.isSiteLocalAddress() || a.isLinkLocalAddress() || a.isAnyLocalAddress()
+                    || a.isMulticastAddress() || isUniqueLocalV6(a) || isCarrierGradeNat(a)) {
                 return false;
             }
-            java.net.InetAddress[] addresses = java.net.InetAddress.getAllByName(host);
-            for (java.net.InetAddress a : addresses) {
-                if (a.isLoopbackAddress() || a.isSiteLocalAddress() || a.isLinkLocalAddress() || a.isAnyLocalAddress()
-                        || a.isMulticastAddress() || isUniqueLocalV6(a) || isCarrierGradeNat(a)) {
-                    return false;
-                }
-            }
-            return addresses.length > 0;
-        } catch (Exception e) {
-            return false;
         }
+        return true;
+    }
+
+    static void clearHostCache() {
+        PUBLIC_HOSTS.clear();
     }
 
     private static boolean isUniqueLocalV6(java.net.InetAddress a) {
