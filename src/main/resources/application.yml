@@ -129,6 +129,15 @@ jozef:
     max-attempts: 3                # ile razy replanować po błędzie
     file: data/plans.json          # trwały zapis planów (przetrwają restart)
 
+  # ─── Telefon (prywatny bot Telegram) ──────────────
+  # 1) W Telegramie napisz do @BotFather: /newbot → dostaniesz token.
+  # 2) Ustaw zmienną środowiskową TELEGRAM_BOT_TOKEN=<token> (nigdy nie wpisuj tokenu tutaj).
+  # 3) Uruchom Jozefa, napisz do swojego bota — odpisze Twoim chat id. Wpisz go niżej i uruchom ponownie.
+  telegram:
+    enabled: true                  # bez tokenu i tak nic nie robi
+    token-env: TELEGRAM_BOT_TOKEN
+    allowed-chat-ids: []           # np. [123456789] — tylko te czaty mogą wydawać polecenia
+
   # ─── Runtime ────────────────────────────────────────
   runtime:
     event-bus:

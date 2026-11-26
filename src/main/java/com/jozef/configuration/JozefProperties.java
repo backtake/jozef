@@ -24,7 +24,8 @@ public record JozefProperties(
         TrayProperties tray,
         ProactiveProperties proactive,
         PlanningProperties planning,
-        RuntimeProperties runtime
+        RuntimeProperties runtime,
+        TelegramProperties telegram
 ) {
     public JozefProperties {
         if (llm == null) llm = new LlmProperties("auto", null, null, null, 0.4, 1024, null);
@@ -43,5 +44,6 @@ public record JozefProperties(
         if (proactive == null) proactive = new ProactiveProperties(true, 5, 5, 15);
         if (planning == null) planning = new PlanningProperties(false, 3, "data/plans.json");
         if (runtime == null) runtime = new RuntimeProperties(null, null);
+        if (telegram == null) telegram = new TelegramProperties(false, null, null);
     }
 }

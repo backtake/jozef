@@ -8,6 +8,7 @@ import com.jozef.automation.launch.Launcher;
 import com.jozef.shortcuts.QuickCommands;
 import com.jozef.shortcuts.ShortcutStore;
 import com.jozef.browser.BrowserCapability;
+import com.jozef.channels.telegram.TelegramCapability;
 import com.jozef.core.agent.AgentRuntime;
 import com.jozef.core.builtin.GetTimeAction;
 import com.jozef.core.capabilities.Capability;
@@ -324,6 +325,11 @@ public class CoreConfiguration {
     @Bean
     public PlanStore planStore(JozefProperties props) {
         return new FilePlanStore(props.planning().file());
+    }
+
+    @Bean
+    public TelegramCapability telegramCapability(JozefProperties props, AgentRuntime agentRuntime) {
+        return new TelegramCapability(props.telegram(), agentRuntime);
     }
 
     @Bean

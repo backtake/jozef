@@ -35,6 +35,8 @@ public class VoiceLoop implements Runnable {
     private static final Set<String> EXIT_PHRASES = Set.of("exit", "quit");
     private static final long QUICK_EMPTY_MILLIS = 1_000;
     private static final long MAX_BACKOFF_MILLIS = 30_000;
+    private static final long ANSWER_WINDOW_MILLIS = 20_000;
+    private static final long MAX_SPEECH_WAIT_MILLIS = 120_000;
 
     private final AgentRuntime agent;
     private final SpeechRecognizer recognizer;
@@ -63,6 +65,11 @@ public class VoiceLoop implements Runnable {
         this.wakeWordDetector = wakeWordDetector;
         this.speakingMonitor = speakingMonitor;
         this.wakeWord = wakeWord == null || wakeWord.isBlank() ? "hej jozef" : wakeWord;
+        if (speakingMonitor != null) {
+            // When Jozef starts talking (e.g. a reminder) stop the current listen; the loop
+            // waits for silence and listens afresh, so its own voice never becomes input.
+            speakingMonitor.addSpeechStartListener(this::interruptListening);
+        }
     }
 
     public void stop() {
@@ -73,15 +80,25 @@ public class VoiceLoop implements Runnable {
 
     /** Pause/resume listening. While paused the microphone is closed. */
     public void setPaused(boolean pause) {
-        paused.set(pause);
-        if (pause) {
-            interruptListening();
-            log.info("Listening paused — microphone released.");
-        } else {
-            synchronized (pauseLock) {
+        synchronized (pauseLock) {
+            // Set the flag and interrupt under the same lock the loop holds while it
+            // re-arms listening — a pause can never slip between the check and the listen.
+            paused.set(pause);
+            if (pause) {
+                interruptListening();
+            } else {
                 pauseLock.notifyAll();
             }
-            log.info("Listening resumed.");
+        }
+        log.info(pause ? "Listening paused — microphone released." : "Listening resumed.");
+    }
+
+    /** Flips pause state atomically; returns the new state (true = paused). */
+    public boolean togglePaused() {
+        synchronized (pauseLock) {
+            boolean next = !paused.get();
+            setPaused(next);
+            return next;
         }
     }
 
@@ -92,6 +109,16 @@ public class VoiceLoop implements Runnable {
     private void interruptListening() {
         if (wakeWordDetector != null) wakeWordDetector.interrupt();
         recognizer.interrupt();
+    }
+
+    /** Re-arms listening unless paused. Returns false when the loop should not listen now. */
+    private boolean armListening() {
+        synchronized (pauseLock) {
+            if (paused.get() || !running.get()) return false;
+            if (wakeWordDetector != null) wakeWordDetector.clearInterrupt();
+            recognizer.clearInterrupt();
+            return true;
+        }
     }
 
     @Override
@@ -105,11 +132,19 @@ public class VoiceLoop implements Runnable {
             try {
                 waitWhilePaused();
                 if (!running.get()) break;
+                if (speakingMonitor != null) {
+                    speakingMonitor.awaitSilence(MAX_SPEECH_WAIT_MILLIS);
+                }
+                if (!armListening()) continue;
                 eventBus.publish(new AgentEvents.ListeningStarted());
                 long started = System.currentTimeMillis();
 
                 String input;
-                boolean awaitingAnswer = wakeWordDetector != null && agent.hasPendingConfirmation();
+                // Without the wake word only right after Jozef asked; later a "tak" from the TV
+                // or another person must not approve anything — then "hej Józef, tak" is needed.
+                boolean freshQuestion = speakingMonitor == null
+                        || started - speakingMonitor.lastSpokeUntil() < ANSWER_WINDOW_MILLIS;
+                boolean awaitingAnswer = wakeWordDetector != null && agent.hasPendingConfirmation() && freshQuestion;
                 if (wakeWordDetector != null && !awaitingAnswer) {
                     input = wakeWordDetector.awaitWakeWord();
                     if (input != null && input.isBlank() && !paused.get()) {

@@ -115,6 +115,17 @@ public class TrayCapability implements Capability {
             menu.add(listening);
             eventBus.register(CoreEvents.ListeningStateChanged.class, ev -> SwingUtilities.invokeLater(() ->
                     listening.setLabel(ev.paused() ? "Wznów słuchanie" : "Wstrzymaj słuchanie")));
+            WindowsAutostartManager autostart = new WindowsAutostartManager();
+            java.awt.CheckboxMenuItem startWithWindows = new java.awt.CheckboxMenuItem(
+                    "Uruchamiaj z Windowsem", autostart.isEnabled("Jozef"));
+            startWithWindows.addItemListener(e -> new Thread(() -> {
+                if (startWithWindows.getState()) {
+                    enableAutostart();
+                } else {
+                    autostart.disable("Jozef");
+                }
+            }, "jozef-autostart").start());
+            menu.add(startWithWindows);
             MenuItem shortcuts = new MenuItem("Edytuj skróty (strony i programy)…");
             shortcuts.addActionListener(e -> eventBus.publish(new CoreEvents.UiRequest(CoreEvents.UiRequest.Kind.OPEN_SHORTCUTS_FILE)));
             menu.add(shortcuts);

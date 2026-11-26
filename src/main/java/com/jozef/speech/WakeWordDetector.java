@@ -16,7 +16,11 @@ public interface WakeWordDetector {
      */
     String awaitWakeWord();
 
-    /** Ask a blocking {@link #awaitWakeWord()} to return {@code null} early (listening paused). Optional. */
+    /** Re-arm after {@link #interrupt()} — called by the voice loop right before listening. */
+    default void clearInterrupt() {
+    }
+
+    /** Ask a blocking {@link #awaitWakeWord()} to return {@code null} early (paused, Jozef speaking). Optional. */
     default void interrupt() {
     }
 }

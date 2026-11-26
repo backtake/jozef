@@ -50,6 +50,7 @@ public class FallbackLlmProvider implements LLMProvider {
             try {
                 ChatResponse response = primary.chat(request);
                 if (response != null) {
+                    lastPrimaryError = null;
                     return response;
                 }
                 log.warn("Primary LLM '{}' returned no response. Falling back to '{}'.", primary.name(), fallback.name());

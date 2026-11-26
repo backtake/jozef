@@ -31,6 +31,13 @@ class SafetyAndUxTest {
         assertThat(keys.strategyFor(Map.of("combo", "enter"))).isEqualTo(ExecutionStrategy.CONFIRM);
         assertThat(keys.strategyFor(Map.of("combo", "win+r"))).isEqualTo(ExecutionStrategy.CONFIRM);
         assertThat(keys.strategyFor(Map.of("combo", "Alt + F4"))).isEqualTo(ExecutionStrategy.CONFIRM);
+        // Keys that activate a focused button or open Start also need a yes.
+        assertThat(keys.strategyFor(Map.of("combo", "tab"))).isEqualTo(ExecutionStrategy.CONFIRM);
+        assertThat(keys.strategyFor(Map.of("combo", "space"))).isEqualTo(ExecutionStrategy.CONFIRM);
+        assertThat(keys.strategyFor(Map.of("combo", "ctrl+esc"))).isEqualTo(ExecutionStrategy.CONFIRM);
+        assertThat(keys.strategyFor(Map.of("combo", "alt+s"))).isEqualTo(ExecutionStrategy.CONFIRM);
+        assertThat(keys.strategyFor(Map.of("combo", "Control+V"))).isEqualTo(ExecutionStrategy.SAFE);
+        assertThat(keys.strategyFor(Map.of("combo", "left"))).isEqualTo(ExecutionStrategy.SAFE);
 
         TypeTextAction type = new TypeTextAction(null);
         assertThat(type.strategyFor(Map.of("text", "Dzień dobry"))).isEqualTo(ExecutionStrategy.SAFE);

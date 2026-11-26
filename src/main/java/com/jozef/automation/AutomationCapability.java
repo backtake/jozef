@@ -10,6 +10,7 @@ import com.jozef.automation.actions.PressKeysAction;
 import com.jozef.automation.actions.ScreenshotAction;
 import com.jozef.automation.actions.SearchWebAction;
 import com.jozef.automation.actions.TypeTextAction;
+import com.jozef.automation.actions.TypingMemory;
 import com.jozef.automation.api.DesktopAutomation;
 import com.jozef.automation.windows.WindowsAutomationService;
 import com.jozef.configuration.AutomationProperties;
@@ -70,8 +71,9 @@ public class AutomationCapability implements Capability {
         };
 
         toolRegistry.register(new CloseApplicationAction(automation));
-        toolRegistry.register(new TypeTextAction(automation));
-        toolRegistry.register(new PressKeysAction(automation));
+        TypingMemory typing = new TypingMemory();
+        toolRegistry.register(new TypeTextAction(automation, typing));
+        toolRegistry.register(new PressKeysAction(automation, typing));
         toolRegistry.register(new ScreenshotAction(automation));
 
         log.info("Automation capability initialized — {} tools registered", toolRegistry.size());

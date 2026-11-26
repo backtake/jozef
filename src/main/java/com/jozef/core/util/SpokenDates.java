@@ -28,6 +28,9 @@ public final class SpokenDates {
         LocalDateTime start = parse(startIso);
         LocalDateTime end = parse(endIso);
         if (start == null) return startIso == null ? "" : startIso;
+        if (startIso != null && !startIso.contains("T")) {
+            return day(start.toLocalDate(), today) + ", cały dzień"; // all-day event: no "o 0:00"
+        }
         String s = day(start.toLocalDate(), today) + " o " + HM.format(start);
         if (end != null) {
             s += end.toLocalDate().equals(start.toLocalDate())

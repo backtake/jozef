@@ -116,7 +116,8 @@ public class Launcher {
         if (toWebUrl(target).isPresent() && !target.toLowerCase(Locale.ROOT).endsWith(".exe")) {
             return openUrl(target);
         }
-        if (isSafeUriScheme(target)) {
+        if (isSafeUriScheme(target) || (allowPaths && URI_SCHEME_APP.matcher(target.toLowerCase(Locale.ROOT)).matches()
+                && !target.equalsIgnoreCase("file:"))) {
             return launch(target, target);
         }
 
@@ -153,12 +154,18 @@ public class Launcher {
                 && !s.toLowerCase(Locale.ROOT).startsWith("http");
     }
 
-    /** "spotify:", "ms-settings:" — app protocols. Never file:, javascript:, script hosts or search-ms:. */
+    /**
+     * App protocols the model may launch ("spotify:", "ms-settings:"). An allowlist: unknown
+     * handlers (search-ms:, ms-msdt:, custom installers) have been used for attacks. The
+     * user can still put any protocol in their own shortcuts file.
+     */
+    private static final java.util.Set<String> SAFE_SCHEMES = java.util.Set.of(
+            "spotify:", "ms-settings:", "steam:", "discord:", "msteams:", "zoommtg:", "slack:", "tg:",
+            "whatsapp:", "mailto:", "ms-photos:", "ms-clock:", "calculator:", "ms-calculator:", "ms-screenclip:",
+            "ms-windows-store:", "xbox:", "ms-gamebar:", "outlookcal:", "outlookmail:", "onenote:");
+
     public static boolean isSafeUriScheme(String target) {
-        String t = target.toLowerCase(Locale.ROOT);
-        if (!URI_SCHEME_APP.matcher(t).matches()) return false;
-        return !(t.equals("file:") || t.equals("javascript:") || t.equals("vbscript:") || t.equals("shell:")
-                || t.startsWith("search") || t.equals("ms-msdt:") || t.equals("cmd:") || t.equals("powershell:"));
+        return target != null && SAFE_SCHEMES.contains(target.trim().toLowerCase(Locale.ROOT));
     }
 
     /** Windows: {@code explorer.exe <target>} — opens URLs, apps, files and shell: ids without a shell. */

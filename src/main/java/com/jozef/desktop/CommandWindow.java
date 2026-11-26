@@ -37,6 +37,7 @@ import java.util.concurrent.Executors;
 @Slf4j
 public class CommandWindow {
 
+    private static final int MAX_LINES = 300;
     private static final Color BG = new Color(17, 24, 39);
     private static final Color FG = new Color(229, 231, 235);
     private static final Color MUTED = new Color(156, 163, 175);
@@ -74,10 +75,7 @@ public class CommandWindow {
             if (frame.isVisible() && frame.isFocused()) {
                 frame.setVisible(false);
             } else {
-                frame.setVisible(true);
-                frame.toFront();
-                frame.requestFocus();
-                input.requestFocusInWindow();
+                bringToFront();
             }
         });
     }
@@ -86,10 +84,29 @@ public class CommandWindow {
         if (!isSupported()) return;
         SwingUtilities.invokeLater(() -> {
             if (frame == null) build();
-            frame.setVisible(true);
-            frame.toFront();
-            input.requestFocusInWindow();
+            bringToFront();
         });
+    }
+
+    /**
+     * Windows refuses keyboard focus to a background process that did not receive the
+     * last input (the global hotkey went to another app). A synthetic Alt tap is the
+     * documented way to be allowed to come to the foreground; without it the box shows
+     * up but typing goes to the previous window.
+     */
+    private void bringToFront() {
+        frame.setVisible(true);
+        frame.setExtendedState(JFrame.NORMAL);
+        try {
+            java.awt.Robot robot = new java.awt.Robot();
+            robot.keyPress(KeyEvent.VK_ALT);
+            robot.keyRelease(KeyEvent.VK_ALT);
+        } catch (Exception ignored) {
+            // no robot (headless/locked session) — best effort
+        }
+        frame.toFront();
+        frame.requestFocus();
+        input.requestFocusInWindow();
     }
 
     private void build() {
@@ -181,6 +198,15 @@ public class CommandWindow {
 
     private void append(String line) {
         transcript.append("\n" + line + "\n");
+        // Keep the box light: only the recent part of the conversation.
+        int excess = transcript.getLineCount() - MAX_LINES;
+        if (excess > 0) {
+            try {
+                transcript.replaceRange("", 0, transcript.getLineEndOffset(excess - 1));
+            } catch (javax.swing.text.BadLocationException ignored) {
+                // nothing to trim
+            }
+        }
         transcript.setCaretPosition(transcript.getDocument().getLength());
     }
 

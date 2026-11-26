@@ -36,13 +36,18 @@ public class VoskWakeWordDetector implements WakeWordDetector {
     }
 
     @Override
+    public void clearInterrupt() {
+        interrupted = false;
+    }
+
+    @Override
     public void interrupt() {
         interrupted = true;
     }
 
     @Override
     public String awaitWakeWord() {
-        interrupted = false;
+
         try (Recognizer recognizer = new Recognizer(VoskModels.get(modelPath), SAMPLE_RATE);
              MicrophoneAudioSource mic = new MicrophoneAudioSource()) {
 
@@ -89,7 +94,7 @@ public class VoskWakeWordDetector implements WakeWordDetector {
             return null; // interrupted (listening paused)
         } catch (Exception e) {
             log.error("Vosk wake-word detection failed: {}", e.getMessage(), e);
-            return "";
+            return null; // NOT "" — that would mean "wake word heard", and the next speech would run as a command
         }
     }
 

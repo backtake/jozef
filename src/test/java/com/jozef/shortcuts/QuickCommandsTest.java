@@ -194,6 +194,25 @@ class QuickCommandsTest {
     }
 
     @Test
+    void aSpokenNameAlwaysMapsToExactlyOneShortcut() {
+        // "poczta" is an alias of the default Gmail shortcut; a new "Poczta" replaces it.
+        assertThat(store.conflicts(Shortcut.website("Poczta", "https://outlook.office.com")))
+                .extracting(Shortcut::name).containsExactly("Gmail");
+        store.put(Shortcut.website("Poczta", "https://outlook.office.com"));
+
+        assertThat(store.find("poczta")).map(Shortcut::url).contains("https://outlook.office.com");
+        assertThat(store.find("gmail")).isEmpty();
+    }
+
+    @Test
+    void modelMayOnlyLaunchAllowlistedAppProtocols() {
+        assertThat(Launcher.isSafeUriScheme("spotify:")).isTrue();
+        assertThat(Launcher.isSafeUriScheme("search-ms:")).isFalse();
+        assertThat(Launcher.isSafeUriScheme("ms-msdt:")).isFalse();
+        assertThat(launcher.openApp("search-ms:").success()).isFalse();
+    }
+
+    @Test
     void brokenShortcutsFileIsNeverOverwritten() throws Exception {
         Path file = dir.resolve("broken.yml");
         Files.writeString(file, "shortcuts: [ {name: x, url: ");

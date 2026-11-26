@@ -1,99 +1,89 @@
 # Jozef
 
-Personal desktop AI agent for Windows — inspired by JARVIS.
+Osobisty asystent AI na Windows, w stylu JARVIS-a. Działa w tle (ikona w trayu),
+słucha „hej Józef”, rozumie polski, otwiera strony i programy, obsługuje Gmaila
+i Kalendarz Google, pamięta notatki, przypomina. Można do niego pisać z komputera
+(Ctrl+Alt+J) i z telefonu (prywatny bot Telegram).
 
-Jozef is **not** a web app, **not** a REST API, and **not** primarily a chatbot.
-It is a background desktop agent: voice in, LLM reasoning, tool execution, voice out.
+Jozef **nie jest** aplikacją webową ani czatem. Spring Boot służy wyłącznie jako
+kontener DI; LLM jest wymiennym „mózgiem”, a głos, okienko i telefon to wymienne
+kanały wejścia.
 
-## Stack
+## Szybki start
 
-- Java 21 LTS
-- Spring Boot 3.4 (DI container only — no web, no REST, no Tomcat)
-- Gradle (Kotlin DSL)
-- Lombok
-- JUnit 5 + AssertJ
-- Vosk (offline speech-to-text) + JNativeHook (global hotkey)
-
-## Architecture
-
-```
-                    ┌───────────────────┐
-                    │      JOZEF        │
-                    │   Agent Runtime   │
-                    └─────────┬─────────┘
-                              │
-        ┌─────────────┬───────┼────────┬──────────────┐
-        ↓             ↓       ↓        ↓              ↓
-     Voice          LLM     Tools   Memory        Context
-        │             │       │
-        ↓             ↓       ↓
-   STT / TTS    Providers   ├── Windows automation
-   (replaceable)  Ollama     ├── Browser (Playwright)
-                  OpenAI     ├── Gmail
-                  DeepSeek   └── Calendar
+```powershell
+$env:JAVA_HOME="$HOME\.jdks\graalvm-jdk-21.0.7"
+.\gradlew.bat bootJar          # buduje build\libs\jozef-0.0.1.jar
+.\jozef.cmd                    # uruchamia Jozefa w tle (bez okna konsoli)
 ```
 
-Key packages:
+W trayu: **Napisz polecenie…**, **Wstrzymaj słuchanie** (mikrofon zwolniony),
+**Uruchamiaj z Windowsem**, **Edytuj skróty**, **Zakończ**.
 
-- `core.event` — async event bus (the nervous system)
-- `core.command` — synchronous command bus (intentional operations)
-- `core.action` — `Action` (what Jozef can do), `ActionResult`, `ExecutionStrategy`
-- `core.tool` — `ToolRegistry` (exposes tool definitions to the LLM)
-- `core.agent` — `AgentRuntime` (the reasoning/tool-calling loop)
-- `core.capabilities` / `core.lifecycle` — capability & lifecycle management
-- `core.security` — `PermissionManager`, `ConfirmationService`
-- `core.session` / `core.context` — conversation memory, system prompt/persona, context aggregation
-- `core.memory` — `LongTermMemory` / `FileLongTermMemory` + `remember_note` / `recall_notes` / `recall_day_notes` / `forget_note` (notes can be attached to a day — a simple notebook)
-- `assistant` — `AssistantCapability` + `daily_briefing` (notes + calendar + timers in one answer)
-- `llm` — provider abstraction (`LLMProvider`) + Ollama/OpenAI/DeepSeek adapters + `FallbackLlmProvider` (automatic failover)
-- `speech` — replaceable `SpeechRecognizer` / `SpeechSynthesizer` / `WakeWordDetector`
-  (console + Vosk offline STT, VAD, Edge TTS)
-- `automation` — `DesktopAutomation` abstraction + Windows implementation
-- `overlay` — `Overlay` / `SwingOverlay` (status HUD)
-- `tray` — `TrayCapability` + autostart + global hotkey (JNativeHook)
-- `google` — `GoogleAuthService` (OAuth) + `GoogleCalendarService` / `GmailService`
-- `proactive` — `TimerScheduler` + `CalendarWatcher` / `GmailWatcher` (background agent)
-- `planning` — `Planner` / `PlanExecutor` / `AutonomousPlanner` (plan → execute → correct) + persistent `FilePlanStore`
-- `configuration` — Spring `@ConfigurationProperties` (`jozef.*`)
-- `bootstrap` — entry point + voice loop
+Do testów z konsolą: `java -jar build\libs\jozef-0.0.1.jar --jozef.speech.stt.provider=console`.
 
-## Run
+## Co umie
 
-```bash
-./gradlew bootRun
+| Polecenie (przykłady) | Jak działa |
+|---|---|
+| „otwórz YouTube”, „wejdź na allegro.pl”, „uruchom Spotify”, „odpal Discorda” | od razu, bez modelu (skróty + programy z Menu Start) |
+| „co mam jutro w kalendarzu?”, „dodaj spotkanie z Anią w piątek o 14” | Google Calendar (dodanie/usunięcie wymaga potwierdzenia) |
+| „czy mam nowe maile od szefa?”, „wyślij Ani maila, że się spóźnię” | Gmail (wysyłka wymaga potwierdzenia) |
+| „zapamiętaj, że lubię kawę bez cukru”, „co o mnie wiesz?” | pamięć długoterminowa (`data/memory.json`) |
+| „przypomnij mi za 20 minut o praniu” | timer + komunikat głosowy |
+| „jak wygląda mój dzień?” | podsumowanie: kalendarz + notatki + timery |
+| „dodaj skrót: poczta firmowa to outlook.office.com” | własne skróty (`data/shortcuts.yml`, edycja z traya) |
+
+**Potwierdzenia.** Wszystko, co wysyła, usuwa albo „naciska Enter” za Ciebie,
+Jozef najpierw opisuje i pyta: *„Potwierdź: wysłać e-mail do … Mam to zrobić?
+Powiedz tak albo nie.”* Pytanie buduje program z prawdziwych danych akcji, nie
+model, a odpowiedź „tak” lub „nie” jest rozpoznawana deterministycznie. Komunikaty
+proaktywne (przypomnienia, nowe maile) są tylko czytane i nigdy nie stają się
+poleceniami.
+
+## Konfiguracja
+
+Wszystko jest w `src/main/resources/application.yml` (sekcja `jozef.*`). Sekrety
+podawaj tylko przez zmienne środowiskowe, nigdy w plikach.
+
+| Co | Ustawienie | Uwagi |
+|---|---|---|
+| Model językowy | `jozef.llm.provider: auto` | OpenAI (`OPENAI_API_KEY`), potem DeepSeek (`DEEPSEEK_API_KEY`), potem lokalna Ollama. `ollama` = wszystko zostaje na komputerze |
+| Głos | `jozef.speech.tts.provider: auto` | OpenAI TTS, gdy rozmowa i tak idzie do OpenAI; inaczej Windows (Paulina, offline) |
+| Mowa → tekst | `jozef.speech.stt` | Vosk offline; model pobiera się sam przy pierwszym starcie |
+| Google | `jozef.google` | przy pierwszym starcie kreator OAuth w przeglądarce |
+| Telefon | `jozef.telegram` | patrz niżej |
+
+### Telefon (Telegram)
+
+1. W Telegramie napisz do **@BotFather** `/newbot` i skopiuj token.
+2. Ustaw zmienną `TELEGRAM_BOT_TOKEN` (Panel sterowania → Zmienne środowiskowe).
+3. Uruchom Jozefa i napisz do swojego bota. Odpisze Twoim *chat id*.
+4. Wpisz je w `jozef.telegram.allowed-chat-ids: [twoje_id]` i uruchom Jozefa ponownie.
+
+Bot łączy się tylko „na zewnątrz” (żadnych otwartych portów). Obcych ignoruje.
+
+## Architektura (skrót)
+
+```
+ głos (Vosk) ─┐
+ okienko ─────┼─► AgentRuntime ─► szybka ścieżka (skróty) ─┐
+ Telegram ────┘        │                                    ▼
+                       └─► LLM (OpenAI/DeepSeek/Ollama) ─► ToolRegistry ─► akcje
+                                                              (PC, przeglądarka, Gmail,
+                                                               Kalendarz, pamięć, timery)
 ```
 
-On Windows Git Bash, if Gradle argument munging occurs, use:
+Najważniejsze pakiety: `core.agent` (pętla, potwierdzenia, szybka ścieżka),
+`llm` (adaptery + fallback), `automation` (launcher, Menu Start, klawiatura),
+`shortcuts`, `google`, `speech`, `channels.telegram`, `desktop` (okienko poleceń),
+`tray`, `proactive`, `core.memory`.
 
-```bash
-cmd //c "gradlew.bat bootRun"
+## Testy
+
+```powershell
+.\gradlew.bat test
 ```
 
-Jozef starts as a background process (no web server), initializes capabilities,
-and enters the voice loop. STT defaults to Vosk (offline, local model); on first
-start the model is downloaded and installed automatically (`data/`), with a
-console fallback if the download fails. The wake word is "hej Jozef".
-The default TTS is Edge (neural Polish voices).
-
-## Configuration
-
-Everything is configured under `jozef.*` in `src/main/resources/application.yml`.
-Secrets (OpenAI/DeepSeek API keys, Google OAuth credentials) are read from
-environment variables (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GOOGLE_CLIENT_ID`,
-`GOOGLE_CLIENT_SECRET`), never committed.
-
-## Test
-
-```bash
-./gradlew test
-```
-
-## Status
-
-All roadmap phases (1–19) are implemented: the voice pipeline (Vosk STT, VAD,
-"hej Jozef" wake word), MVP 2 (Playwright browser, Google OAuth/Calendar/Gmail),
-MVP 3 (overlay HUD, system tray + autostart + global hotkey, long-term memory +
-context), and the proactive agent + autonomous planning. On top of that: an
-LLM fallback (local Ollama → DeepSeek), a dated notebook, a `daily_briefing`
-tool, and persistent plans/sessions. Remaining (optional): Anthropic/Gemini LLM
-adapters.
+Testy nie wymagają sieci, kluczy, mikrofonu ani Google. Zewnętrzne API są
+zastąpione lokalnymi serwerami HTTP albo atrapami.

@@ -30,19 +30,33 @@ public class WindowsAutostartManager implements AutostartManager {
         return runSucceeds("reg", "query", RUN_KEY, "/v", appName);
     }
 
-    /** Builds the {@code java -jar <bootJar>} command used at startup. */
+    /**
+     * Builds the startup command: {@code javaw} (no console window) with the working
+     * directory pinned to the current one — Windows starts Run-key entries in
+     * System32, where Jozef's relative {@code data/} folder would not be found.
+     */
     static String currentJarCommand() {
         Path jar = findBootJar();
         if (jar == null) {
             return null;
         }
-        String javaBin = Path.of(System.getProperty("java.home"), "bin", "java.exe").toString();
-        return buildCommand(javaBin, jar.toAbsolutePath().toString());
+        Path javaw = Path.of(System.getProperty("java.home"), "bin", "javaw.exe");
+        String javaBin = (Files.exists(javaw) ? javaw : Path.of(System.getProperty("java.home"), "bin", "java.exe")).toString();
+        return buildCommand(javaBin, jar.toAbsolutePath().toString(), System.getProperty("user.dir"));
     }
 
     /** Pure command builder (package-private for tests). */
     static String buildCommand(String javaBin, String jarPath) {
         return "\"" + javaBin + "\" -jar \"" + jarPath + "\"";
+    }
+
+    static String buildCommand(String javaBin, String jarPath, String workingDir) {
+        if (workingDir == null || workingDir.isBlank()) {
+            return buildCommand(javaBin, jarPath);
+        }
+        // A trailing backslash would escape the closing quote.
+        String dir = workingDir.replaceAll("[\\\\/]+$", "");
+        return "\"" + javaBin + "\" \"-Duser.dir=" + dir + "\" -jar \"" + jarPath + "\"";
     }
 
     private static Path findBootJar() {

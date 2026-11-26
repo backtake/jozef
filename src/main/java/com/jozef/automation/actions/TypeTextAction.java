@@ -16,9 +16,15 @@ import java.util.Set;
 public class TypeTextAction implements Action {
 
     private final DesktopAutomation automation;
+    private final TypingMemory typing;
 
     public TypeTextAction(DesktopAutomation automation) {
+        this(automation, null);
+    }
+
+    public TypeTextAction(DesktopAutomation automation, TypingMemory typing) {
         this.automation = automation;
+        this.typing = typing;
     }
 
     @Override
@@ -76,6 +82,7 @@ public class TypeTextAction implements Action {
             return ActionResult.fail("No text provided");
         }
         automation.typeText(text);
+        if (typing != null) typing.typed(text);
         return ActionResult.ok("Typed: " + text);
     }
 }

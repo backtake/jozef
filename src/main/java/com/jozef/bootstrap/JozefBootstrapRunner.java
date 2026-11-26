@@ -74,7 +74,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
                     if (commandWindow != null) commandWindow.show();
                 }
                 case TOGGLE_LISTENING -> {
-                    voiceLoop.setPaused(!voiceLoop.isPaused());
+                    voiceLoop.togglePaused();
                     eventBus.publish(new CoreEvents.ListeningStateChanged(voiceLoop.isPaused()));
                 }
                 case OPEN_SHORTCUTS_FILE -> openInEditor(shortcuts.file().toAbsolutePath().toString());

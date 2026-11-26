@@ -146,14 +146,25 @@ public class ShortcutStore {
         return sb.toString();
     }
 
-    /** Adds or replaces (same name) a shortcut and persists the file. */
+    /**
+     * Adds a shortcut, replacing every existing one whose name or alias it shares —
+     * so a spoken name always maps to exactly one target. Persists the file.
+     */
     public synchronized Shortcut put(Shortcut shortcut) {
         requireWritable();
-        String key = TextNormalizer.normalize(shortcut.name());
-        shortcuts.removeIf(s -> TextNormalizer.normalize(s.name()).equals(key));
+        shortcuts.removeAll(conflicts(shortcut));
         shortcuts.add(shortcut);
         save();
         return shortcut;
+    }
+
+    /** Existing shortcuts that {@link #put} would replace (shared name or alias). */
+    public synchronized List<Shortcut> conflicts(Shortcut candidate) {
+        reloadIfEdited();
+        List<String> newKeys = keys(candidate);
+        return shortcuts.stream()
+                .filter(s -> keys(s).stream().anyMatch(newKeys::contains))
+                .toList();
     }
 
     public synchronized boolean remove(String spoken) {

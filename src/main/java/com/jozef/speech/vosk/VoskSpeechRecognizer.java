@@ -48,6 +48,11 @@ public class VoskSpeechRecognizer implements SpeechRecognizer {
     }
 
     @Override
+    public void clearInterrupt() {
+        interrupted = false;
+    }
+
+    @Override
     public void interrupt() {
         interrupted = true;
     }
@@ -59,7 +64,7 @@ public class VoskSpeechRecognizer implements SpeechRecognizer {
 
     @Override
     public String listen() {
-        interrupted = false;
+
         try (Recognizer recognizer = new Recognizer(VoskModels.get(modelPath), SAMPLE_RATE);
              MicrophoneAudioSource mic = new MicrophoneAudioSource()) {
 

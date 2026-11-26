@@ -56,9 +56,12 @@ public final class ShortcutTools {
                         .withConfirmationSummary(args -> {
                             Validated v = validate(args);
                             if (v.error() != null) return "zapisać skrót (nieprawidłowy: " + v.error() + ")";
-                            Optional<Shortcut> existing = store.find(v.shortcut().name());
-                            return "zapisać skrót „" + v.shortcut().name() + "” → " + v.shortcut().target()
-                                    + existing.map(e -> " (ZASTĄPI obecny: " + e.target() + ")").orElse("");
+                            List<Shortcut> replaced = store.conflicts(v.shortcut());
+                            String aliases = v.shortcut().aliases().isEmpty() ? ""
+                                    : " (inne nazwy: " + String.join(", ", v.shortcut().aliases()) + ")";
+                            return "zapisać skrót „" + v.shortcut().name() + "” → " + v.shortcut().target() + aliases
+                                    + (replaced.isEmpty() ? "" : " — ZASTĄPI obecny: " + replaced.stream()
+                                    .map(e -> e.name() + " → " + e.target()).collect(Collectors.joining("; ")));
                         }),
                 new LambdaAction("list_shortcuts",
                         "List the user's saved shortcuts (websites and programs).",

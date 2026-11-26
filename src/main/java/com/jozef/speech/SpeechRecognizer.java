@@ -13,7 +13,11 @@ public interface SpeechRecognizer {
      */
     String listen();
 
-    /** Ask a blocking {@link #listen()} to return early (e.g. listening paused). Optional. */
+    /** Re-arm after {@link #interrupt()} — called by the voice loop right before listening. */
+    default void clearInterrupt() {
+    }
+
+    /** Ask a blocking {@link #listen()} to return early (paused, Jozef starts speaking). Optional. */
     default void interrupt() {
     }
 }

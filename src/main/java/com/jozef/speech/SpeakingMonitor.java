@@ -1,21 +1,30 @@
 package com.jozef.speech;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
 /**
  * Serialises Jozef's own speech and remembers when it last spoke.
  *
  * <ul>
  *   <li>Only one utterance plays at a time (voice loop, command window and proactive
  *       notices never talk over each other).</li>
- *   <li>The voice loop discards anything recognised while Jozef was speaking — otherwise
- *       a notice such as "Temat: tak, potwierdzam" read aloud could be heard by the
- *       microphone and taken as the user's answer.</li>
+ *   <li>Listeners hear when playback starts, so the voice loop can stop listening
+ *       and start afresh afterwards — the microphone never transcribes Jozef's own
+ *       voice into a command, and the user's next command is not mixed with it.</li>
  * </ul>
  */
 public final class SpeakingMonitor {
 
     private final Object playLock = new Object();
+    private final List<Runnable> onSpeechStart = new CopyOnWriteArrayList<>();
     private volatile long speakingSince = -1;
     private volatile long lastSpokeUntil = 0;
+
+    /** Called (on the speaking thread) right before Jozef starts talking. */
+    public void addSpeechStartListener(Runnable listener) {
+        onSpeechStart.add(listener);
+    }
 
     /** Wraps a synthesizer so every utterance goes through this monitor. */
     public SpeechSynthesizer guard(SpeechSynthesizer delegate) {
@@ -25,6 +34,13 @@ public final class SpeakingMonitor {
                 if (text == null || text.isBlank()) return;
                 synchronized (playLock) {
                     speakingSince = System.currentTimeMillis();
+                    for (Runnable listener : onSpeechStart) {
+                        try {
+                            listener.run();
+                        } catch (RuntimeException ignored) {
+                            // a listener must never stop Jozef from speaking
+                        }
+                    }
                     try {
                         delegate.speak(text);
                     } finally {
@@ -48,5 +64,18 @@ public final class SpeakingMonitor {
 
     public boolean isSpeaking() {
         return speakingSince >= 0;
+    }
+
+    /** When the last utterance finished (epoch millis), 0 if never. */
+    public long lastSpokeUntil() {
+        return lastSpokeUntil;
+    }
+
+    /** Blocks while Jozef is speaking (bounded). */
+    public void awaitSilence(long maxMillis) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + maxMillis;
+        while (isSpeaking() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+        }
     }
 }
