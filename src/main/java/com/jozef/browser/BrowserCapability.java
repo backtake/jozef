@@ -75,6 +75,11 @@ public class BrowserCapability implements Capability {
                     if (url == null || !(url.startsWith("http://") || url.startsWith("https://"))) {
                         return ActionResult.fail("Only http(s) addresses can be read");
                     }
+                    if (!isPublicAddress(url)) {
+                        // A page/e-mail could tell the model to read the router panel or a local
+                        // service and leak it; only public internet pages are readable.
+                        return ActionResult.fail("Only public internet pages can be read (not local or private network addresses)");
+                    }
                     browser.navigate(url);
                     return ActionResult.ok(browser.getPageTitle() + "\n" + limit(browser.getPageText(), 8000));
                 }).withTimeoutSeconds(60));
@@ -89,6 +94,39 @@ public class BrowserCapability implements Capability {
                     browser.navigate("https://www.bing.com/search?setlang=pl&q=" + q);
                     return ActionResult.ok(limit(browser.getPageText(), 6000));
                 }).withTimeoutSeconds(60));
+    }
+
+    /** True when every address the host resolves to is a public internet address. */
+    static boolean isPublicAddress(String url) {
+        try {
+            String host = java.net.URI.create(url).getHost();
+            if (host == null || host.isBlank()) return false;
+            String h = host.toLowerCase();
+            if (h.equals("localhost") || h.endsWith(".local") || h.endsWith(".localhost") || h.endsWith(".internal")
+                    || h.endsWith(".lan") || h.endsWith(".home")) {
+                return false;
+            }
+            java.net.InetAddress[] addresses = java.net.InetAddress.getAllByName(host);
+            for (java.net.InetAddress a : addresses) {
+                if (a.isLoopbackAddress() || a.isSiteLocalAddress() || a.isLinkLocalAddress() || a.isAnyLocalAddress()
+                        || a.isMulticastAddress() || isUniqueLocalV6(a) || isCarrierGradeNat(a)) {
+                    return false;
+                }
+            }
+            return addresses.length > 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isUniqueLocalV6(java.net.InetAddress a) {
+        byte[] b = a.getAddress();
+        return b.length == 16 && (b[0] & 0xFE) == 0xFC; // fc00::/7
+    }
+
+    private static boolean isCarrierGradeNat(java.net.InetAddress a) {
+        byte[] b = a.getAddress();
+        return b.length == 4 && (b[0] & 0xFF) == 100 && (b[1] & 0xC0) == 64; // 100.64.0.0/10
     }
 
     private static String limit(String text, int max) {

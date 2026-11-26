@@ -73,19 +73,30 @@ public class ProactiveCapability implements Capability {
         timerScheduler = new InMemoryTimerScheduler(executor, message -> agent.trigger("Przypomnienie: " + message));
         registerTools();
 
-        if (google != null && google.calendar() != null) {
+        if (google != null) {
+            // Also covers Google being connected later (setup finished after startup).
+            google.onConnected(this::startGoogleWatchers);
+        }
+
+        log.info("Proactive capability initialized.");
+    }
+
+    private boolean googleWatchersStarted;
+
+    private synchronized void startGoogleWatchers() {
+        if (googleWatchersStarted || executor == null || executor.isShutdown()) return;
+        googleWatchersStarted = true;
+        if (google.calendar() != null) {
             new CalendarWatcher(google.calendar(), agent, Duration.ofMinutes(props.calendarLookaheadMinutes()))
                     .start(executor, Duration.ofMinutes(props.calendarPollMinutes()));
             log.info("Calendar watcher started (poll={}min, lookahead={}min).",
                     props.calendarPollMinutes(), props.calendarLookaheadMinutes());
         }
-        if (google != null && google.gmail() != null) {
+        if (google.gmail() != null) {
             new GmailWatcher(google.gmail(), agent, 10)
                     .start(executor, Duration.ofMinutes(props.gmailPollMinutes()));
             log.info("Gmail watcher started (poll={}min).", props.gmailPollMinutes());
         }
-
-        log.info("Proactive capability initialized.");
     }
 
     private void registerTools() {

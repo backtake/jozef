@@ -115,6 +115,25 @@ public class GoogleCapability implements Capability {
         registerGmailTools();
         // OAuth consent happens lazily on the first Google request — not at boot.
         log.info("Google capability ready (calendar + gmail, {} tools total).", toolRegistry.size());
+        for (Runnable listener : connectedListeners) {
+            try {
+                listener.run();
+            } catch (Exception e) {
+                log.warn("Google connected-listener failed: {}", e.getMessage());
+            }
+        }
+    }
+
+    private final java.util.List<Runnable> connectedListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /** Runs {@code listener} once Google is connected — immediately if it already is. */
+    public void onConnected(Runnable listener) {
+        boolean connectedNow;
+        synchronized (this) {
+            connectedListeners.add(listener);
+            connectedNow = auth != null;
+        }
+        if (connectedNow) listener.run();
     }
 
     private volatile Thread setupThread;
