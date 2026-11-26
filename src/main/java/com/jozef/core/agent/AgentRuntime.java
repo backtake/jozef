@@ -248,6 +248,11 @@ public class AgentRuntime implements AutoCloseable {
         return p != null && !p.isExpired(clock.instant());
     }
 
+    /** Why the language model failed last time (Polish), or {@code null} when the last call worked. */
+    public String lastLlmProblem() {
+        return lastLlmHint;
+    }
+
     /** Names of the tools waiting for confirmation (empty when none). Lock-free. */
     public List<String> pendingToolNames() {
         PendingConfirmation p = pending;
@@ -266,7 +271,7 @@ public class AgentRuntime implements AutoCloseable {
         for (int step = 0; step <= maxSteps; step++) {
             // On the last step withhold tools so the model must summarise what it has.
             boolean lastStep = step == maxSteps;
-            ChatResponse response = callLlm(systemPrompt, messages, lastStep ? List.of() : toolSchemas);
+            ChatResponse response = callLlm(systemPrompt, messages, toolSchemas, !lastStep);
             if (response == null) {
                 // Never claim "nothing happened" after something did — the user would retry it.
                 boolean anyDone = executions.stream().anyMatch(ToolExecution::success);
@@ -287,7 +292,7 @@ public class AgentRuntime implements AutoCloseable {
                 return finish(text, executions, true);
             }
 
-            messages.add(ChatMessage.assistantToolCalls(response.content(), response.toolCalls()));
+            messages.add(ChatMessage.assistantToolCalls(response.content(), response.toolCalls(), response.providerContent()));
             for (ToolCall toolCall : response.toolCalls()) {
                 ToolExecution execution = executeTool(toolCall, parked);
                 executions.add(execution);
@@ -317,15 +322,17 @@ public class AgentRuntime implements AutoCloseable {
         return new AgentResult(question.toString(), executions, true);
     }
 
-    private ChatResponse callLlm(String systemPrompt, List<ChatMessage> messages, List<ToolSchema> tools) {
+    private ChatResponse callLlm(String systemPrompt, List<ChatMessage> messages, List<ToolSchema> tools,
+                                 boolean toolCallsAllowed) {
         ChatRequest request = new ChatRequest(systemPrompt, List.copyOf(messages), tools,
-                llmProperties.temperature(), llmProperties.maxTokens());
+                llmProperties.temperature(), llmProperties.maxTokens(), toolCallsAllowed);
         eventBus.publish(new AgentEvents.LLMRequestStarted());
         try {
             ChatResponse response = llm.chat(request);
             if (response == null) {
                 throw new IllegalStateException("LLM returned no response");
             }
+            lastLlmHint = null;
             eventBus.publish(new AgentEvents.LLMResponseReceived(
                     response.content(), response.toolCalls() == null ? 0 : response.toolCalls().size()));
             return response;

@@ -11,6 +11,7 @@ import com.jozef.browser.BrowserCapability;
 import com.jozef.channels.telegram.TelegramCapability;
 import com.jozef.core.agent.AgentRuntime;
 import com.jozef.core.builtin.GetTimeAction;
+import com.jozef.core.builtin.StatusAction;
 import com.jozef.core.capabilities.Capability;
 import com.jozef.core.capabilities.CapabilityLoader;
 import com.jozef.core.commands.CommandBus;
@@ -261,6 +262,25 @@ public class CoreConfiguration {
     @Bean
     public ShortcutStore shortcutStore(@Value("${jozef.shortcuts.file:data/shortcuts.yml}") String file) {
         return new ShortcutStore(file);
+    }
+
+    @Bean
+    public StatusAction statusAction(ToolRegistry toolRegistry, LLMCapability llm, AgentRuntime agentRuntime,
+                                     SpeechCapability speech, GoogleCapability google,
+                                     TelegramCapability telegram, ShortcutStore shortcutStore,
+                                     InstalledAppsCatalog catalog) {
+        StatusAction status = new StatusAction()
+                .add("Model językowy", () -> llm.provider().name()
+                        + (agentRuntime.lastLlmProblem() == null ? "" : " — problem: " + agentRuntime.lastLlmProblem()))
+                .add("Głos", () -> speech.synthesizer().name())
+                .add("Rozpoznawanie mowy", () -> speech.recognizer().name()
+                        + (speech.wakeWordDetector() == null ? ", bez słowa budzącego" : ", słowo budzące włączone"))
+                .add("Google (Gmail, Kalendarz)", () -> google.calendar() != null ? "połączone" : "niepołączone")
+                .add("Telefon (Telegram)", telegram::status)
+                .add("Skróty", () -> shortcutStore.all().size() + " zapisanych")
+                .add("Programy z Menu Start", () -> catalog.apps().size() + " znanych");
+        toolRegistry.register(status);
+        return status;
     }
 
     @Bean

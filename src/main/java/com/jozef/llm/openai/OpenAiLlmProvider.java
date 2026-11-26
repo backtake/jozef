@@ -100,7 +100,7 @@ public class OpenAiLlmProvider implements LLMProvider {
 
         if (request.tools() != null && !request.tools().isEmpty()) {
             body.put("tools", buildToolsJson(request.tools()));
-            body.put("tool_choice", "auto");
+            body.put("tool_choice", request.toolCallsAllowed() ? "auto" : "none");
         }
 
         // Reasoning models (o-series, gpt-5) reject temperature and the legacy max_tokens.

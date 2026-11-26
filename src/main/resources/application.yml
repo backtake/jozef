@@ -14,10 +14,10 @@ spring:
 jozef:
   # ─── LLM ────────────────────────────────────────────
   llm:
-    # auto = najlepszy dostępny: OpenAI (gdy jest OPENAI_API_KEY) → DeepSeek (DEEPSEEK_API_KEY) → lokalna Ollama.
+    # auto = najlepszy dostępny: Claude (ANTHROPIC_API_KEY) → OpenAI (OPENAI_API_KEY) → DeepSeek (DEEPSEEK_API_KEY) → lokalna Ollama.
     # Małe modele lokalne (llama3.2 3B) słabo radzą sobie z narzędziami i polskim — stąd chmura, gdy jest klucz.
-    provider: auto                 # auto | openai | deepseek | ollama
-    model: ""                      # puste = domyślny providera (openai: gpt-4.1-mini, deepseek: deepseek-chat, ollama: llama3.2)
+    provider: auto                 # auto | anthropic | openai | deepseek | ollama
+    model: ""                      # puste = domyślny providera (anthropic: claude-opus-5-5, openai: gpt-4.1-mini, deepseek: deepseek-chat, ollama: llama3.2)
     endpoint: ""                   # puste = domyślny providera (ollama: http://localhost:11434)
     api-key-env: ""                # nazwa zmiennej środowiskowej z kluczem (puste = standardowa dla providera)
     temperature: 0.4

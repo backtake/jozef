@@ -45,6 +45,15 @@ public class TelegramCapability implements Capability {
         return "telegram";
     }
 
+    /** Short Polish status for jozef_status. */
+    public String status() {
+        if (props == null || !props.enabled()) return "wyłączony";
+        if (!running) return "nieaktywny (brak tokenu " + props.tokenEnv() + ")";
+        return props.allowedChatIds().isEmpty()
+                ? "bot działa, ale nie ma jeszcze dozwolonych czatów"
+                : "aktywny (" + props.allowedChatIds().size() + " dozwolony czat)";
+    }
+
     @Override
     public int priority() {
         return 90;

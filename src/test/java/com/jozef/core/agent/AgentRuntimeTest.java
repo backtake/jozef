@@ -525,7 +525,8 @@ class AgentRuntimeTest {
         AgentResult result = agent.process("rób w kółko");
 
         assertThat(result.text()).isEqualTo("Podsumowanie");
-        assertThat(llm.lastRequest().tools()).isEmpty();
+        assertThat(llm.lastRequest().toolCallsAllowed()).isFalse();
+        assertThat(llm.lastRequest().tools()).isNotEmpty(); // kept: some APIs require them when history has tool calls
     }
 
     private AgentRuntime agentWith(FakeLlm llm, ToolRegistry tools, ConfirmationService confirmation) {

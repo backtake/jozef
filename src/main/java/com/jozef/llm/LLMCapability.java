@@ -2,6 +2,7 @@ package com.jozef.llm;
 
 import com.jozef.configuration.LlmProperties;
 import com.jozef.core.capabilities.Capability;
+import com.jozef.llm.anthropic.AnthropicLlmProvider;
 import com.jozef.llm.ollama.OllamaProvider;
 import com.jozef.llm.openai.OpenAiLlmProvider;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,7 @@ public class LLMCapability implements Capability {
         if (!"auto".equals(name)) {
             return name;
         }
+        if (!isBlank(env.apply("ANTHROPIC_API_KEY"))) return "anthropic";
         if (!isBlank(env.apply("OPENAI_API_KEY"))) return "openai";
         if (!isBlank(env.apply("DEEPSEEK_API_KEY"))) return "deepseek";
         return "ollama";
@@ -81,7 +83,8 @@ public class LLMCapability implements Capability {
         return switch (provider) {
             case "openai" -> m.startsWith("gpt") || m.matches("o\\d.*") || m.startsWith("chatgpt");
             case "deepseek" -> m.startsWith("deepseek");
-            default -> !m.startsWith("gpt") && !m.startsWith("deepseek");
+            case "anthropic" -> m.startsWith("claude");
+            default -> !m.startsWith("gpt") && !m.startsWith("deepseek") && !m.startsWith("claude");
         };
     }
 
@@ -104,6 +107,12 @@ public class LLMCapability implements Capability {
                     defaultIfBlank(model, "deepseek-chat"),
                     resolveApiKey(apiKeyEnv, "DEEPSEEK_API_KEY"),
                     defaultIfBlank(endpoint, "https://api.deepseek.com/v1/chat/completions"),
+                    timeout);
+            case "anthropic", "claude" -> new AnthropicLlmProvider(
+                    defaultIfBlank(model, AnthropicLlmProvider.DEFAULT_MODEL),
+                    resolveApiKey(apiKeyEnv, "ANTHROPIC_API_KEY"),
+                    defaultIfBlank(endpoint, AnthropicLlmProvider.DEFAULT_ENDPOINT),
+                    "low",
                     timeout);
             case "gemini" -> throw new IllegalArgumentException(
                     "LLM provider gemini is not implemented yet. Supported: ollama, openai, deepseek.");

@@ -48,7 +48,7 @@ podawaj tylko przez zmienne środowiskowe, nigdy w plikach.
 
 | Co | Ustawienie | Uwagi |
 |---|---|---|
-| Model językowy | `jozef.llm.provider: auto` | OpenAI (`OPENAI_API_KEY`), potem DeepSeek (`DEEPSEEK_API_KEY`), potem lokalna Ollama. `ollama` = wszystko zostaje na komputerze |
+| Model językowy | `jozef.llm.provider: auto` | Claude (`ANTHROPIC_API_KEY`), potem OpenAI (`OPENAI_API_KEY`), DeepSeek (`DEEPSEEK_API_KEY`), potem lokalna Ollama. `ollama` = wszystko zostaje na komputerze |
 | Głos | `jozef.speech.tts.provider: auto` | OpenAI TTS, gdy rozmowa i tak idzie do OpenAI; inaczej Windows (Paulina, offline) |
 | Mowa → tekst | `jozef.speech.stt` | Vosk offline; model pobiera się sam przy pierwszym starcie |
 | Google | `jozef.google` | przy pierwszym starcie kreator OAuth w przeglądarce |

@@ -91,7 +91,7 @@ public class OllamaProvider implements LLMProvider {
 
         body.put("messages", messages);
 
-        if (request.tools() != null && !request.tools().isEmpty()) {
+        if (request.tools() != null && !request.tools().isEmpty() && request.toolCallsAllowed()) {
             body.put("tools", buildToolsJson(request.tools()));
         }
 
