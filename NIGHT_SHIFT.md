@@ -144,3 +144,13 @@ Brakuje przed sprzedażą:
   wewnątrz przeglądarki i DNS rebinding to ryzyko szczątkowe.
 - Playwright po przekroczeniu czasu narzędzia używany z nowego wątku.
 - Wiadomości Telegrama: przy awarii w środku paczki pozostałe wiadomości tej paczki przepadają.
+
+## Merge do master (26.11.2026)
+
+Zgodnie z zasadą R1: agent-reviewer (rola użytkownika) przejrzał `jozef-overhaul` → `master`.
+Werdykt: **APPROVE**. `clean test bootJar`: 254 testy, 253 zielone, 1 pominięty (LiveBrowserTest, tylko z `JOZEF_LIVE=1`), 0 błędów.
+Brak blokerów. Uwagi nieblokujące do backlogu:
+- [ ] OAuth Google bez `state`/PKCE (`GoogleAuthService`): przed sprzedażą dodać.
+- [ ] Przy ustawionym `TELEGRAM_BOT_TOKEN` i pustej liście czatów bot odpowiada obcym ich chat ID (z limitem).
+- [ ] Pierwszy start sam pobiera model Vosk: w produkcie zapytać o zgodę lub poinformować.
+- [ ] `jozef.cmd`/autostart zakładają jar w `build/libs/`: instalator dla klienta.
