@@ -65,6 +65,12 @@ public class GoogleAuthService {
     }
 
     private volatile Thread signInThread;
+    private volatile Runnable signedOutListener;
+
+    /** Called once when Google rejects the stored tokens (so the user can be told). */
+    public void setSignedOutListener(Runnable listener) {
+        this.signedOutListener = listener;
+    }
 
     /**
      * Returns a valid access token, refreshing it when expired (a quick network call).
@@ -85,6 +91,14 @@ public class GoogleAuthService {
                 log.warn("{} — forgetting Google tokens; the next Gmail/Calendar request opens sign-in.", e.getMessage());
                 tokens = null;
                 tokenStore.delete();
+                Runnable listener = signedOutListener;
+                if (listener != null) {
+                    try {
+                        listener.run();
+                    } catch (Exception ignored) {
+                        // a notice must not break token handling
+                    }
+                }
                 throw new GoogleNotSignedInException();
             }
             tokenStore.save(tokens);
@@ -275,6 +289,11 @@ public class GoogleAuthService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
                 String responseBody = response.body() == null ? "" : response.body();
+                if (responseBody.contains("invalid_client")) {
+                    // The OAuth client itself is gone/changed — signing in again would fail too.
+                    throw new IllegalStateException("Google OAuth client is no longer valid (invalid_client) — "
+                            + "run the Google setup again (\"połącz się z Google\" after deleting data/google-credentials.json)");
+                }
                 if (response.statusCode() == 401 || responseBody.contains("invalid_grant")) {
                     // Refresh token expired/revoked (7-day limit for apps in "Testing", a password
                     // change, removed access): forget the tokens so a fresh sign-in can start.

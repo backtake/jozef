@@ -118,7 +118,8 @@ public class BrowserCapability implements Capability {
                 const u = new URL(href).searchParams.get('u');
                 if (u && u.startsWith('a1')) {
                   const b64 = u.slice(2).replace(/-/g, '+').replace(/_/g, '/');
-                  href = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
+                  const bin = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
+                  href = new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
                 }
               } catch (e) { }
               return (a ? a.innerText.trim() : '') + ' | ' + href + ' | ' + (p ? p.innerText.trim() : '');

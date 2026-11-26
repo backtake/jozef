@@ -86,6 +86,11 @@ public class ProactiveCapability implements Capability {
     private synchronized void startGoogleWatchers() {
         if (googleWatchersStarted || executor == null || executor.isShutdown()) return;
         googleWatchersStarted = true;
+        if (google.auth() != null) {
+            // Otherwise mail/calendar notices would just stop silently after Google signs Jozef out.
+            google.auth().setSignedOutListener(() -> agent.trigger(
+                    "Google wylogowało mnie z Twojego konta. Powiedz „połącz się z Google”, żebym znów widział maile i kalendarz."));
+        }
         if (google.calendar() != null) {
             new CalendarWatcher(google.calendar(), agent, Duration.ofMinutes(props.calendarLookaheadMinutes()))
                     .start(executor, Duration.ofMinutes(props.calendarPollMinutes()));

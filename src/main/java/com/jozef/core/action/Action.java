@@ -94,7 +94,9 @@ public interface Action {
             case "open_url" -> "otworzyć w przeglądarce adres " + a.get("url");
             case "open_application" -> "uruchomić " + a.get("name");
             case "search_web" -> "wyszukać w przeglądarce: „" + a.get("query") + "”";
-            case "set_timer" -> "ustawić przypomnienie: „" + a.get("message") + "”";
+            case "set_timer" -> "ustawić przypomnienie: „" + a.get("message") + "”"
+                    + (a.get("delay_minutes") != null ? " za " + a.get("delay_minutes") + " min"
+                    : a.get("delay_seconds") != null ? " za " + a.get("delay_seconds") + " s" : "");
             case "read_web_page" -> "pobrać stronę " + a.get("url");
             case "web_lookup" -> "wyszukać w internecie: „" + a.get("query") + "”";
             case "google_connect" -> "otworzyć konfigurację konta Google";
