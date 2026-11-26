@@ -46,6 +46,16 @@ public class GoogleTokenStore {
         }
     }
 
+    /** Forgets the stored tokens (after Google rejected the refresh token). */
+    public void delete() {
+        try {
+            java.nio.file.Files.deleteIfExists(path);
+            log.info("Google tokens removed from {}", path);
+        } catch (Exception e) {
+            log.warn("Could not delete {}: {}", path, e.getMessage());
+        }
+    }
+
     public Path path() {
         return path;
     }

@@ -79,10 +79,27 @@ public class GoogleAuthService {
             throw new GoogleNotSignedInException();
         }
         if (tokens.isExpired()) {
-            tokens = refreshAccessToken(tokens);
+            try {
+                tokens = refreshAccessToken(tokens);
+            } catch (TokensRevokedException e) {
+                log.warn("{} — forgetting Google tokens; the next Gmail/Calendar request opens sign-in.", e.getMessage());
+                tokens = null;
+                tokenStore.delete();
+                throw new GoogleNotSignedInException();
+            }
             tokenStore.save(tokens);
         }
         return tokens.accessToken();
+    }
+
+    /** Checks that Google really answers (refreshes if needed) — not just that a token file exists. */
+    public boolean verifySignedIn() {
+        try {
+            accessToken();
+            return true;
+        } catch (GoogleNotSignedInException e) {
+            return false;
+        }
     }
 
     /** True when tokens exist (signed in at least once and not signed out). */
@@ -221,10 +238,17 @@ public class GoogleAuthService {
         return requestTokens(body);
     }
 
+    /** The stored refresh token was rejected — tokens must be forgotten and the user must sign in again. */
+    static final class TokensRevokedException extends IllegalStateException {
+        TokensRevokedException(String message) {
+            super(message);
+        }
+    }
+
     private GoogleTokens refreshAccessToken(GoogleTokens current) {
         if (current.refreshToken() == null || current.refreshToken().isBlank()) {
-            log.info("No refresh token available — re-running the consent flow.");
-            return runAuthorizationFlow();
+            // Never run the interactive flow here (we may be on a watcher or the agent thread).
+            throw new TokensRevokedException("No refresh token available");
         }
         String body = "refresh_token=" + urlEncode(current.refreshToken())
                 + "&client_id=" + urlEncode(clientId)
@@ -250,8 +274,14 @@ public class GoogleAuthService {
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
+                String responseBody = response.body() == null ? "" : response.body();
+                if (response.statusCode() == 401 || responseBody.contains("invalid_grant")) {
+                    // Refresh token expired/revoked (7-day limit for apps in "Testing", a password
+                    // change, removed access): forget the tokens so a fresh sign-in can start.
+                    throw new TokensRevokedException("Google refresh token no longer valid (" + response.statusCode() + ")");
+                }
                 throw new IllegalStateException("Google token request failed ("
-                        + response.statusCode() + "): " + response.body());
+                        + response.statusCode() + "): " + responseBody);
             }
             Map<String, Object> json = mapper.readValue(response.body(), new TypeReference<>() {});
             String accessToken = (String) json.get("access_token");

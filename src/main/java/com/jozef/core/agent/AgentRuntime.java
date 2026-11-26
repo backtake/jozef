@@ -91,6 +91,7 @@ public class AgentRuntime implements AutoCloseable {
     private PendingConfirmation otherChannelPending;
     /** Third-party text (web/mail/invites) entered the conversation in this turn (under {@code this} lock). */
     private UntrustedContentPolicy.Taint taintThisTurn = UntrustedContentPolicy.Taint.NONE;
+    private boolean noticeSinceLastTurn;
 
     /**
      * Tools run on one dedicated thread (thread-confined libraries such as Playwright
@@ -180,7 +181,8 @@ public class AgentRuntime implements AutoCloseable {
         }
         currentChannel = channel == null ? LOCAL_CHANNEL : channel;
         otherChannelPending = null; // never resurrect a question left over by a turn that failed with an exception
-        taintThisTurn = UntrustedContentPolicy.Taint.NONE;
+        taintThisTurn = noticeSinceLastTurn ? UntrustedContentPolicy.Taint.PUBLIC : UntrustedContentPolicy.Taint.NONE;
+        noticeSinceLastTurn = false;
 
         eventBus.publish(new AgentEvents.UserCommandReceived(userMessage));
         List<ChatMessage> history = historyMessages();
@@ -266,6 +268,8 @@ public class AgentRuntime implements AutoCloseable {
     public synchronized void recordAssistantNotice(String text) {
         if (text != null && !text.isBlank()) {
             sessions.current().addTurn("assistant", text);
+            // A notice quotes third parties (mail subject, event title): the next turn starts tainted.
+            noticeSinceLastTurn = true;
             sessions.persist();
         }
     }

@@ -22,7 +22,9 @@ public final class UntrustedContentPolicy {
     public enum Taint { NONE, PUBLIC, PRIVATE }
 
     private static final Set<String> PUBLIC_SOURCES = Set.of(
-            "read_web_page", "web_lookup", "browser_get_page_text", "browser_read_text");
+            "read_web_page", "web_lookup", "browser_get_page_text", "browser_read_text",
+            // stored notes may have been written from third-party text in the past
+            "recall_notes", "recall_day_notes");
 
     private static final Set<String> PRIVATE_SOURCES = Set.of(
             "gmail_list_recent", "gmail_read_message",

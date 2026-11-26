@@ -77,7 +77,9 @@ public class JozefBootstrapRunner implements CommandLineRunner {
                 : null;
         if (commandWindow != null) {
             eventBus.register(CoreEvents.HotkeyPressed.class, e -> commandWindow.toggle());
-            showWelcomeOnFirstRun(commandWindow);
+            Thread welcome = new Thread(() -> showWelcomeOnFirstRun(commandWindow), "jozef-welcome");
+            welcome.setDaemon(true);
+            welcome.start();
         }
         eventBus.register(CoreEvents.UiRequest.class, request -> {
             switch (request.kind()) {

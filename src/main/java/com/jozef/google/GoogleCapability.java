@@ -38,9 +38,9 @@ public class GoogleCapability implements Capability {
     private final GoogleProperties props;
     private final ToolRegistry toolRegistry;
 
-    private GoogleAuthService auth;
-    private GoogleCalendarService calendar;
-    private GmailService gmail;
+    private volatile GoogleAuthService auth;
+    private volatile GoogleCalendarService calendar;
+    private volatile GmailService gmail;
 
     public GoogleCapability(GoogleProperties props, ToolRegistry toolRegistry) {
         this.props = props;
@@ -165,7 +165,7 @@ public class GoogleCapability implements Capability {
                 null, Set.of("GOOGLE_SETUP"), ExecutionStrategy.SAFE,
                 ctx -> {
                     if (auth != null) {
-                        if (auth.isSignedIn()) return ActionResult.ok("Google is already connected.");
+                        if (auth.verifySignedIn()) return ActionResult.ok("Google is already connected.");
                         auth.startSignIn();
                         return ActionResult.ok("A browser window with the Google sign-in opened — tell the user to approve access.");
                     }

@@ -88,6 +88,21 @@ public interface Action {
 
     /** Generic, honest summary listing every argument (long values shortened). */
     static String defaultConfirmationSummary(String toolName, Map<String, Object> arguments) {
+        Map<String, Object> a = arguments == null ? Map.of() : arguments;
+        String readable = switch (toolName) {
+            case "remember_note" -> "zapamiętać notatkę: „" + a.get("content") + "”";
+            case "open_url" -> "otworzyć w przeglądarce adres " + a.get("url");
+            case "open_application" -> "uruchomić " + a.get("name");
+            case "search_web" -> "wyszukać w przeglądarce: „" + a.get("query") + "”";
+            case "set_timer" -> "ustawić przypomnienie: „" + a.get("message") + "”";
+            case "read_web_page" -> "pobrać stronę " + a.get("url");
+            case "web_lookup" -> "wyszukać w internecie: „" + a.get("query") + "”";
+            case "google_connect" -> "otworzyć konfigurację konta Google";
+            default -> null;
+        };
+        if (readable != null) {
+            return readable.length() > 260 ? readable.substring(0, 257) + "…" : readable;
+        }
         StringBuilder sb = new StringBuilder("wykonać akcję ").append(toolName);
         if (arguments != null && !arguments.isEmpty()) {
             sb.append(" (");

@@ -29,6 +29,21 @@ class GoogleTokenStoreTest {
     }
 
     @Test
+    void unusableTokensAreForgottenSoSignInCanStartAgain() {
+        Path file = tempDir.resolve("tokens.json");
+        GoogleTokenStore store = new GoogleTokenStore(file.toString());
+        // Expired access token and no refresh token: never wait for the user here.
+        store.save(new GoogleTokens("old", null, System.currentTimeMillis() - 1_000L, null));
+        GoogleAuthService auth = new GoogleAuthService("id", "secret", store);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(auth::accessToken)
+                .isInstanceOf(GoogleNotSignedInException.class);
+        assertThat(file).doesNotExist();
+        assertThat(auth.isSignedIn()).isFalse();
+        assertThat(auth.verifySignedIn()).isFalse();
+    }
+
+    @Test
     void returnsNullWhenFileMissing() {
         GoogleTokenStore store = new GoogleTokenStore(tempDir.resolve("missing.json").toString());
         assertThat(store.load()).isNull();

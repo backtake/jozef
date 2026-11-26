@@ -472,7 +472,7 @@ class AgentRuntimeTest {
         AgentResult result = agent.process("przeczytaj najnowszego maila");
 
         assertThat(ran).containsExactly("gmail_read_message", "get_current_time");
-        assertThat(result.text()).contains("Potwierdź").contains("remember_note").contains("evil.example");
+        assertThat(result.text()).contains("Potwierdź").contains("zapamiętać notatkę").contains("evil.example");
     }
 
     @Test

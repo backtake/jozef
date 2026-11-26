@@ -54,6 +54,18 @@ podawaj tylko przez zmienne środowiskowe, nigdy w plikach.
 | Google | `jozef.google` | przy pierwszym starcie kreator OAuth w przeglądarce |
 | Telefon | `jozef.telegram` | patrz niżej |
 
+### Google (Gmail, Kalendarz)
+
+Powiedz albo napisz „połącz się z Google” (lub wybierz to z traya). Otworzy się Google
+Cloud Console: utwórz *OAuth client ID* typu *Desktop app* i kliknij *Pobierz JSON*.
+Jozef sam znajdzie plik w Pobranych, a przy pierwszym poleceniu dotyczącym maili albo
+kalendarza otworzy logowanie Google.
+
+**Ważne:** jeśli ekran zgody aplikacji w Google Cloud ma status *Testing*, Google
+unieważnia dostęp po 7 dniach. Jozef wtedy sam poprosi o ponowne zalogowanie. Żeby tego
+uniknąć, ustaw w Google Cloud Console status aplikacji na *In production*. Przy własnym
+koncie nie wymaga to weryfikacji przez Google.
+
 ### Telefon (Telegram)
 
 1. W Telegramie napisz do **@BotFather** `/newbot` i skopiuj token.
