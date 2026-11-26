@@ -80,7 +80,12 @@ Błędne założenia biznesowe:
 - 01:15–04:00 limit tokenów. Watchdog odpalał sesje headless (też trafiały w limit); o 04:00 headless
   ruszył minutę przed wznowieniem tej sesji — zatrzymany (duplikat), watchdog przełączony na samo logowanie
   (harness sam wznawia sesję po resecie).
-- 04:30 JOZEF-29 adapter Anthropic + jozef_status; JOZEF-30 poprawki rundy 4.
+- 04:30 JOZEF-29 adapter Anthropic + jozef_status; JOZEF-30 poprawki rundy 4 → krytyk PASS → **push e9a4bd8**.
+- 04:35–04:45 JOZEF-31..38: multimedia, pogoda, gmail_reply + łatka wstrzykiwania nagłówków, nieblokujący
+  Google, read_web_page/web_lookup (test na żywo), blokada SSRF, odporność pamięci na treści z WWW/maili,
+  ciche pierwsze sprawdzenie Gmaila, powitanie, CHANGELOG/agent.md, Windows TTS przez stdin.
+- ~04:45–09:00 drugi limit tokenów (sesja wznowiona automatycznie, watchdog już niczego nie odpalał).
+- 09:05 JOZEF-39 (G1: wygasłe tokeny Google) → runda 9 krytyka.
 
 ## Decyzje
 
@@ -104,3 +109,21 @@ Błędne założenia biznesowe:
    (gpt-4.1-mini to grosze miesięcznie przy osobistym użyciu) albo ustaw `DEEPSEEK_API_KEY`.
 2. Ollama: uruchomiłem ją przy diagnozie (`ollama list` startuje serwer); pobrała się aktualizacja 0.40.18 —
    instalator czeka, aż go zatwierdzisz.
+3. **Google nie jest skonfigurowane** (brak `data/google-credentials.json`). Przy pierwszym starcie nowej wersji
+   Jozef raz otworzy kreator w tle; potem „połącz się z Google” / tray. Ustaw aplikację OAuth na
+   *In production*, inaczej Google co 7 dni wymusi ponowne logowanie.
+4. **Telefon**: utwórz bota u @BotFather, ustaw `TELEGRAM_BOT_TOKEN`, wpisz swój chat id w
+   `jozef.telegram.allowed-chat-ids` (instrukcja w README).
+5. Do decyzji: `jozef.llm.provider: auto` wysyła rozmowy do chmury, gdy jest klucz (Claude/OpenAI). Jeśli
+   wolisz prywatność kosztem jakości — `ollama`. Domyślne miasto pogody: `jozef.weather.city`.
+6. Nie testowałem na żywo (wymaga Ciebie / kont): logowania Google, wysyłki maili, bota Telegram, mikrofonu
+   z Vosk, rzeczywistego wpisu autostartu w rejestrze (logikę zapisu sprawdziłem na kluczu testowym).
+
+## Znane drobne ograniczenia (świadomie zostawione)
+
+- Telefon i PC dzielą jedną historię rozmowy; poziom „effort” Claude na sztywno `low`.
+- Przy autostarcie przez `cmd /c start` przez ułamek sekundy mignie okno konsoli.
+- Czytanie stron w tle: żądania do sieci lokalnej są blokowane filtrem Playwright; przekierowania
+  wewnątrz przeglądarki i DNS rebinding to ryzyko szczątkowe.
+- Playwright po przekroczeniu czasu narzędzia używany z nowego wątku.
+- Wiadomości Telegrama: przy awarii w środku paczki pozostałe wiadomości tej paczki przepadają.

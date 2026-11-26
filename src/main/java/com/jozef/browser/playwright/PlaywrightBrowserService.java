@@ -74,7 +74,29 @@ public class PlaywrightBrowserService implements BrowserService {
             page = context.newPage();
         }
 
+        // Every request the background browser makes (page, images, scripts, XHR) must go to the
+        // public internet — a page must not be able to poke the router or local services.
+        if (requestFilter != null) {
+            context.route("**/*", route -> {
+                String url = route.request().url();
+                if ((url.startsWith("http://") || url.startsWith("https://")) && !requestFilter.test(url)) {
+                    log.debug("Blocked background request to a non-public address: {}", url);
+                    route.abort("blockedbyclient");
+                } else if (url.startsWith("file:")) {
+                    route.abort("blockedbyclient");
+                } else {
+                    route.resume();
+                }
+            });
+        }
         log.info("Browser launched.");
+    }
+
+    private java.util.function.Predicate<String> requestFilter;
+
+    /** Allow-predicate applied to every request (set before the browser opens). */
+    public void setRequestFilter(java.util.function.Predicate<String> filter) {
+        this.requestFilter = filter;
     }
 
     @Override

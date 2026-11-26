@@ -51,7 +51,9 @@ public class BrowserCapability implements Capability {
             return;
         }
 
-        browser = new PlaywrightBrowserService(props.headless(), props.channel(), props.profileDir(), props.executablePath());
+        PlaywrightBrowserService playwright = new PlaywrightBrowserService(props.headless(), props.channel(), props.profileDir(), props.executablePath());
+        playwright.setRequestFilter(BrowserCapability::isPublicAddressCached);
+        browser = playwright;
         registerReadingTools();
         if (Boolean.getBoolean("jozef.browser.advanced-tools")
                 || "true".equalsIgnoreCase(System.getenv("JOZEF_BROWSER_ADVANCED_TOOLS"))) {
@@ -122,6 +124,21 @@ public class BrowserCapability implements Capability {
               return (a ? a.innerText.trim() : '') + ' | ' + href + ' | ' + (p ? p.innerText.trim() : '');
             }).join('\\n')
             """;
+
+    private static final java.util.Map<String, Boolean> PUBLIC_HOSTS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** {@link #isPublicAddress} with a per-host cache (pages load dozens of resources per host). */
+    static boolean isPublicAddressCached(String url) {
+        String host;
+        try {
+            host = java.net.URI.create(url).getHost();
+        } catch (Exception e) {
+            return false;
+        }
+        if (host == null) return false;
+        if (PUBLIC_HOSTS.size() > 2000) PUBLIC_HOSTS.clear();
+        return PUBLIC_HOSTS.computeIfAbsent(host.toLowerCase(), h -> isPublicAddress(url));
+    }
 
     /** True when every address the host resolves to is a public internet address. */
     static boolean isPublicAddress(String url) {
