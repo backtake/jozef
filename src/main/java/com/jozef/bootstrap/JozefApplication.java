@@ -22,8 +22,18 @@ import org.springframework.context.annotation.Import;
 public class JozefApplication {
 
     public static void main(String[] args) {
-        if (!SingleInstance.acquire(java.nio.file.Path.of("data", "jozef.lock").toAbsolutePath())) {
-            String message = "Jozef już działa (ikona w zasobniku obok zegara). Druga kopia nie zostanie uruchomiona.";
+        boolean acquired;
+        String problem = null;
+        try {
+            acquired = SingleInstance.acquire(java.nio.file.Path.of("data", "jozef.lock").toAbsolutePath());
+        } catch (IllegalStateException e) {
+            acquired = false;
+            problem = e.getMessage();
+        }
+        if (!acquired) {
+            String message = problem != null
+                    ? "Jozef nie może wystartować: " + problem
+                    : "Jozef już działa (ikona w zasobniku obok zegara). Druga kopia nie zostanie uruchomiona.";
             System.err.println(message);
             if (!java.awt.GraphicsEnvironment.isHeadless()) {
                 javax.swing.JOptionPane.showMessageDialog(null, message, "Jozef",

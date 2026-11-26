@@ -3,6 +3,7 @@ package com.jozef.bootstrap;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -19,20 +20,36 @@ public final class SingleInstance {
 
     private SingleInstance() {}
 
-    /** Tries to take the lock; returns false when another Jozef already holds it. */
+    /**
+     * Tries to take the lock; returns false when another Jozef already holds it.
+     *
+     * @throws IllegalStateException when the lock file cannot be created at all (e.g. the
+     *                               folder is not writable) — a different problem than
+     *                               "already running", reported as such
+     */
     public static synchronized boolean acquire(Path lockFile) {
         try {
             Path parent = lockFile.toAbsolutePath().getParent();
             if (parent != null) Files.createDirectories(parent);
             channel = FileChannel.open(lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        } catch (IOException e) {
+            throw new IllegalStateException("Nie mogę utworzyć " + lockFile + ": " + e.getMessage(), e);
+        }
+        try {
             lock = channel.tryLock();
-            if (lock == null) {
+        } catch (OverlappingFileLockException e) {
+            lock = null;
+        } catch (IOException e) {
+            throw new IllegalStateException("Nie mogę zablokować " + lockFile + ": " + e.getMessage(), e);
+        }
+        if (lock == null) {
+            try {
                 channel.close();
-                return false;
+            } catch (IOException ignored) {
+                // closing a channel we could not lock
             }
-            return true; // held until the JVM exits
-        } catch (IOException | java.nio.channels.OverlappingFileLockException e) {
             return false;
         }
+        return true; // held until the JVM exits
     }
 }

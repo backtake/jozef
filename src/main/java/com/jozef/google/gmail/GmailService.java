@@ -181,14 +181,77 @@ public class GmailService {
     }
 
     static String buildMimeMessage(String to, String subject, String body) {
+        return buildMimeMessage(to, subject, body, null);
+    }
+
+    /**
+     * Builds the RFC 5322 message. Header values come from the model, so line breaks
+     * are stripped (otherwise "temat\r\nBcc: obcy@x" would add a hidden recipient), the
+     * subject is RFC 2047-encoded (Polish letters) and the body travels as base64.
+     */
+    static String buildMimeMessage(String to, String subject, String body, String inReplyTo) {
         StringBuilder sb = new StringBuilder();
-        sb.append("To: ").append(to == null ? "" : to).append("\r\n");
-        sb.append("Subject: ").append(subject == null ? "" : subject).append("\r\n");
+        sb.append("To: ").append(headerValue(to)).append("\r\n");
+        sb.append("Subject: ").append(encodeHeaderWord(headerValue(subject))).append("\r\n");
+        if (inReplyTo != null && !inReplyTo.isBlank()) {
+            String id = headerValue(inReplyTo);
+            sb.append("In-Reply-To: ").append(id).append("\r\n");
+            sb.append("References: ").append(id).append("\r\n");
+        }
         sb.append("MIME-Version: 1.0\r\n");
         sb.append("Content-Type: text/plain; charset=UTF-8\r\n");
+        sb.append("Content-Transfer-Encoding: base64\r\n");
         sb.append("\r\n");
-        sb.append(body == null ? "" : body);
+        sb.append(Base64.getMimeEncoder().encodeToString((body == null ? "" : body).getBytes(StandardCharsets.UTF_8)));
         return sb.toString();
+    }
+
+    /** A single-line header value: CR/LF and other control characters removed. */
+    static String headerValue(String value) {
+        if (value == null) return "";
+        return value.replaceAll("[\\r\\n\\u0000-\\u001f\\u007f]+", " ").trim();
+    }
+
+    static String encodeHeaderWord(String value) {
+        boolean ascii = value.chars().allMatch(c -> c >= 0x20 && c < 0x7f);
+        return ascii ? value
+                : "=?UTF-8?B?" + Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8)) + "?=";
+    }
+
+    /**
+     * Replies in the original thread: To = Reply-To (or From), Subject "Re: …",
+     * In-Reply-To/References set so mail clients thread it. Returns the new message id.
+     */
+    public String replyToMessage(String messageId, String body) {
+        Map<String, Object> original = getJson(BASE + "/messages/" + urlEncode(messageId)
+                + "?format=metadata&metadataHeaders=From&metadataHeaders=Reply-To"
+                + "&metadataHeaders=Subject&metadataHeaders=Message-ID");
+        Reply reply = replyFor(original);
+        String raw = buildMimeMessage(reply.to(), reply.subject(), body, reply.inReplyTo());
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("raw", encodeBase64Url(raw));
+        if (reply.threadId() != null) payload.put("threadId", reply.threadId());
+        return (String) postJson(BASE + "/messages/send", payload).get("id");
+    }
+
+    /** Who/what a reply goes to — also used to tell the user before they confirm. */
+    public Reply replyTarget(String messageId) {
+        return replyFor(getJson(BASE + "/messages/" + urlEncode(messageId)
+                + "?format=metadata&metadataHeaders=From&metadataHeaders=Reply-To"
+                + "&metadataHeaders=Subject&metadataHeaders=Message-ID"));
+    }
+
+    public record Reply(String to, String subject, String inReplyTo, String threadId) {}
+
+    @SuppressWarnings("unchecked")
+    static Reply replyFor(Map<String, Object> original) {
+        Map<String, Object> payload = (Map<String, Object>) original.get("payload");
+        String replyTo = header(payload, "Reply-To");
+        String to = replyTo != null && !replyTo.isBlank() ? replyTo : header(payload, "From");
+        String subject = header(payload, "Subject");
+        subject = subject == null ? "" : subject;
+        if (!subject.regionMatches(true, 0, "Re:", 0, 3)) subject = "Re: " + subject;
+        return new Reply(to, subject, header(payload, "Message-ID"), (String) original.get("threadId"));
     }
 
     static String encodeBase64Url(String raw) {

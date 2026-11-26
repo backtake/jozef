@@ -445,6 +445,11 @@ class AgentRuntimeTest {
         agent.process("tak"); // someone at the PC (or the TV) says "tak"
 
         assertThat(send.executions).isZero();
+        // ...and that did not cancel the phone's question: the owner can still answer there.
+        assertThat(agent.hasPendingConfirmation("telegram:42")).isTrue();
+        llm.enqueue(new ChatResponse("Wysłane.", List.of()));
+        agent.process("tak", "telegram:42");
+        assertThat(send.executions).isEqualTo(1);
     }
 
     @Test

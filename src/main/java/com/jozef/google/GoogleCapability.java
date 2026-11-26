@@ -232,6 +232,27 @@ public class GoogleCapability implements Capability {
                             + "”, treść: „" + body + "”";
                 }));
 
+        toolRegistry.register(action("gmail_reply",
+                "Reply to an e-mail in its thread (\"odpowiedz mu, że…\"). Get message_id from gmail_list_recent first.",
+                new ToolParameters()
+                        .string("message_id", "ID of the message to reply to", true)
+                        .string("body", "Plain-text reply", true)
+                        .build(),
+                Set.of("GOOGLE_GMAIL"), ExecutionStrategy.CONFIRM,
+                ctx -> {
+                    String id = gmail.replyToMessage(require(ctx, "message_id"), require(ctx, "body"));
+                    return ActionResult.ok("Reply sent (id " + id + ")");
+                }).withConfirmationSummary(args -> {
+                    String body = str(args.get("body")).replaceAll("\\s+", " ").trim();
+                    if (body.length() > 220) body = body.substring(0, 217) + "…";
+                    try {
+                        var target = gmail.replyTarget(str(args.get("message_id")));
+                        return "odpowiedzieć na maila „" + target.subject() + "” do " + target.to() + ", treść: „" + body + "”";
+                    } catch (Exception e) {
+                        return "odpowiedzieć na maila (nie udało się pobrać, do kogo) treścią: „" + body + "”";
+                    }
+                }));
+
         toolRegistry.register(action("gmail_list_recent",
                 "List recent emails from Gmail.",
                 new ToolParameters()

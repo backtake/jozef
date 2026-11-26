@@ -217,6 +217,8 @@ public class AnthropicLlmProvider implements LLMProvider {
         Map<String, Object> json = mapper.readValue(body, new TypeReference<>() {});
         String stop = json.get("stop_reason") instanceof String s ? s : "";
         if ("refusal".equals(stop)) {
+            Object details = json.get("stop_details");
+            log.info("anthropic: refusal ({})", details instanceof Map<?, ?> d ? d.get("category") : "no details");
             return new ChatResponse("Przepraszam, w tym nie mogę pomóc.", List.of());
         }
         if (!(json.get("content") instanceof List<?> blocks)) {
@@ -235,6 +237,11 @@ public class AnthropicLlmProvider implements LLMProvider {
                         ? (Map<String, Object>) m : Map.of();
                 calls.add(ToolCall.of(block.get("id") instanceof String id ? id : null, toolName, input));
             }
+        }
+        if (!calls.isEmpty() && !"tool_use".equals(stop)) {
+            // e.g. max_tokens: the tool input may be truncated — never run it.
+            log.warn("anthropic: ignoring {} tool call(s) because stop_reason={}", calls.size(), stop);
+            calls = List.of();
         }
         // Keep the raw blocks only when a tool step follows (they must be replayed unchanged).
         return new ChatResponse(text.toString().trim(), calls, calls.isEmpty() ? null : blocks);

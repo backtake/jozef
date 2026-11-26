@@ -86,6 +86,8 @@ public class AgentRuntime implements AutoCloseable {
     private volatile String lastLlmHint;
     /** Channel of the turn being processed (only touched under {@code this} lock). */
     private String currentChannel = LOCAL_CHANNEL;
+    /** Another channel's open question, set aside during this turn (under {@code this} lock). */
+    private PendingConfirmation otherChannelPending;
 
     /**
      * Tools run on one dedicated thread (thread-confined libraries such as Playwright
@@ -184,10 +186,14 @@ public class AgentRuntime implements AutoCloseable {
         List<ToolExecution> executions = new ArrayList<>();
 
         PendingConfirmation waiting = takePending();
+        if (waiting != null && !waiting.channel().equals(currentChannel)) {
+            // Another channel's question stays open (a voice command at home must not cancel
+            // a "wyślij?" asked on the phone) — unless this turn parks a new action itself.
+            otherChannelPending = waiting;
+            waiting = null;
+        }
         if (waiting != null) {
-            ConfirmationReply.Kind reply = waiting.channel().equals(currentChannel)
-                    ? ConfirmationReply.classify(userMessage, waiting.toolNames())
-                    : ConfirmationReply.Kind.OTHER;
+            ConfirmationReply.Kind reply = ConfirmationReply.classify(userMessage, waiting.toolNames());
             if (reply == ConfirmationReply.Kind.NO) {
                 eventBus.publish(new AgentEvents.ConfirmationResolved(waiting.describeTools(), false));
                 log.info("User cancelled pending {}", waiting.describeTools());
@@ -328,6 +334,7 @@ public class AgentRuntime implements AutoCloseable {
 
     /** Ends the turn with the code-built confirmation question for the parked calls. */
     private AgentResult park(List<Parked> parked, String modelText, List<ToolExecution> executions) {
+        otherChannelPending = null; // a new question supersedes any other open one
         pending = new PendingConfirmation(List.copyOf(parked), clock.instant().plus(PENDING_TTL), currentChannel);
         StringBuilder question = new StringBuilder();
         if (parked.size() == 1) {
@@ -375,8 +382,10 @@ public class AgentRuntime implements AutoCloseable {
     }
 
     private AgentResult finish(String text, List<ToolExecution> executions, boolean success) {
-        // Any exit other than an explicit confirmation question drops parked actions.
-        pending = null;
+        // Any exit other than an explicit confirmation question drops this channel's parked
+        // actions; another channel's open question is restored untouched.
+        pending = otherChannelPending;
+        otherChannelPending = null;
         sessions.current().addTurn("assistant", text);
         sessions.persist();
         return new AgentResult(text, executions, success);

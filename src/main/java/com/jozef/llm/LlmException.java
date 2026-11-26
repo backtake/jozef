@@ -36,6 +36,8 @@ public class LlmException extends RuntimeException {
     public boolean isAccountProblem() {
         if (statusCode == 401 || statusCode == 403 || statusCode == 402) return true;
         String m = getMessage() == null ? "" : getMessage().toLowerCase();
+        // Anthropic reports an empty balance as 400 "credit balance is too low".
+        if (statusCode == 400 && m.contains("credit balance")) return true;
         return statusCode == 429 && (m.contains("insufficient_quota") || m.contains("credit")
                 || m.contains("billing") || m.contains("quota"));
     }
