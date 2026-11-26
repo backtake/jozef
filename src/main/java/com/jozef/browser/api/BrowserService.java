@@ -32,4 +32,7 @@ public interface BrowserService {
     String screenshot();
 
     void search(String query);
+
+    /** Runs a JavaScript expression in the page and returns its string result. */
+    String evaluate(String expression);
 }

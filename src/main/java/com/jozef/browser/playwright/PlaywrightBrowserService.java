@@ -164,6 +164,13 @@ public class PlaywrightBrowserService implements BrowserService {
         navigate("https://www.google.com/search?q=" + encoded);
     }
 
+    @Override
+    public String evaluate(String expression) {
+        openIfNeeded();
+        Object result = page.evaluate(expression);
+        return result == null ? "" : result.toString();
+    }
+
     private void openIfNeeded() {
         if (page == null) {
             open();

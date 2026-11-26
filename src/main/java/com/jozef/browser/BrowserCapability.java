@@ -92,9 +92,36 @@ public class BrowserCapability implements Capability {
                 ctx -> {
                     String q = java.net.URLEncoder.encode(ctx.getString("query"), java.nio.charset.StandardCharsets.UTF_8);
                     browser.navigate("https://www.bing.com/search?setlang=pl&q=" + q);
-                    return ActionResult.ok(limit(browser.getPageText(), 6000));
+                    String results = browser.evaluate(BING_RESULTS_JS);
+                    if (!results.isBlank()) {
+                        return ActionResult.ok(limit(results, 6000));
+                    }
+                    String text = browser.getPageText();
+                    String lower = text.toLowerCase();
+                    if (lower.contains("captcha") || lower.contains("nie jesteś robotem") || lower.contains("verify you are human")) {
+                        return ActionResult.fail("The search engine asked for a CAPTCHA — offer to open the search in the user's browser (search_web)");
+                    }
+                    return ActionResult.ok(limit(text, 6000));
                 }).withTimeoutSeconds(60));
     }
+
+    /** Extracts "title | link | snippet" lines from a Bing results page (empty when none). */
+    static final String BING_RESULTS_JS = """
+            () => Array.from(document.querySelectorAll('li.b_algo')).slice(0, 8).map(li => {
+              const a = li.querySelector('h2 a');
+              const p = li.querySelector('.b_caption p, p');
+              let href = a ? a.href : '';
+              try {
+                // Bing wraps links: /ck/a?...&u=a1<base64url of the real address>
+                const u = new URL(href).searchParams.get('u');
+                if (u && u.startsWith('a1')) {
+                  const b64 = u.slice(2).replace(/-/g, '+').replace(/_/g, '/');
+                  href = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
+                }
+              } catch (e) { }
+              return (a ? a.innerText.trim() : '') + ' | ' + href + ' | ' + (p ? p.innerText.trim() : '');
+            }).join('\\n')
+            """;
 
     /** True when every address the host resolves to is a public internet address. */
     static boolean isPublicAddress(String url) {
