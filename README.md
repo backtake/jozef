@@ -61,7 +61,13 @@ podawaj tylko przez zmienne środowiskowe, nigdy w plikach.
 3. Uruchom Jozefa i napisz do swojego bota. Odpisze Twoim *chat id*.
 4. Wpisz je w `jozef.telegram.allowed-chat-ids: [twoje_id]` i uruchom Jozefa ponownie.
 
-Bot łączy się tylko „na zewnątrz” (żadnych otwartych portów). Obcych ignoruje.
+Bot łączy się tylko „na zewnątrz” (żadnych otwartych portów). Obcych, grupy i
+wiadomości przekazane ignoruje. Wiadomości sprzed ponad 3 minut (np. gdy komputer
+spał) pomija i o tym informuje. Akcję zleconą z telefonu potwierdzasz z telefonu, a
+zleconą przy komputerze potwierdzasz przy komputerze.
+
+**Prywatność:** czaty z botami Telegrama nie są szyfrowane end-to-end. Treść poleceń
+i odpowiedzi (np. fragmenty maili) przechodzi przez serwery Telegrama.
 
 ## Architektura (skrót)
 

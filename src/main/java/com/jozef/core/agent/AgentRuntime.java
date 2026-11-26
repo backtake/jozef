@@ -84,6 +84,8 @@ public class AgentRuntime implements AutoCloseable {
     private final Clock clock;
     private final List<FastPath> fastPaths = new CopyOnWriteArrayList<>();
     private volatile String lastLlmHint;
+    /** Channel of the turn being processed (only touched under {@code this} lock). */
+    private String currentChannel = LOCAL_CHANNEL;
 
     /**
      * Tools run on one dedicated thread (thread-confined libraries such as Playwright
@@ -155,10 +157,23 @@ public class AgentRuntime implements AutoCloseable {
      * Only call this with text the user actually said or typed — it may approve
      * a pending action. Synchronized so channels never interleave a turn.
      */
-    public synchronized AgentResult process(String userMessage) {
+    public AgentResult process(String userMessage) {
+        return process(userMessage, LOCAL_CHANNEL);
+    }
+
+    /** Channel of the person at the PC (voice and the command window). */
+    public static final String LOCAL_CHANNEL = "local";
+
+    /**
+     * Like {@link #process(String)}, naming the channel the utterance came from. A pending
+     * confirmation can only be answered on the channel that started it — a "tak" heard by
+     * the PC microphone never approves something requested from the phone, and vice versa.
+     */
+    public synchronized AgentResult process(String userMessage, String channel) {
         if (userMessage == null || userMessage.isBlank()) {
             return AgentResult.reply("");
         }
+        currentChannel = channel == null ? LOCAL_CHANNEL : channel;
 
         eventBus.publish(new AgentEvents.UserCommandReceived(userMessage));
         List<ChatMessage> history = historyMessages();
@@ -170,7 +185,9 @@ public class AgentRuntime implements AutoCloseable {
 
         PendingConfirmation waiting = takePending();
         if (waiting != null) {
-            ConfirmationReply.Kind reply = ConfirmationReply.classify(userMessage, waiting.toolNames());
+            ConfirmationReply.Kind reply = waiting.channel().equals(currentChannel)
+                    ? ConfirmationReply.classify(userMessage, waiting.toolNames())
+                    : ConfirmationReply.Kind.OTHER;
             if (reply == ConfirmationReply.Kind.NO) {
                 eventBus.publish(new AgentEvents.ConfirmationResolved(waiting.describeTools(), false));
                 log.info("User cancelled pending {}", waiting.describeTools());
@@ -248,6 +265,12 @@ public class AgentRuntime implements AutoCloseable {
         return p != null && !p.isExpired(clock.instant());
     }
 
+    /** True while an action started on {@code channel} waits for that channel's yes/no. */
+    public boolean hasPendingConfirmation(String channel) {
+        PendingConfirmation p = pending;
+        return p != null && !p.isExpired(clock.instant()) && p.channel().equals(channel);
+    }
+
     /** Why the language model failed last time (Polish), or {@code null} when the last call worked. */
     public String lastLlmProblem() {
         return lastLlmHint;
@@ -305,7 +328,7 @@ public class AgentRuntime implements AutoCloseable {
 
     /** Ends the turn with the code-built confirmation question for the parked calls. */
     private AgentResult park(List<Parked> parked, String modelText, List<ToolExecution> executions) {
-        pending = new PendingConfirmation(List.copyOf(parked), clock.instant().plus(PENDING_TTL));
+        pending = new PendingConfirmation(List.copyOf(parked), clock.instant().plus(PENDING_TTL), currentChannel);
         StringBuilder question = new StringBuilder();
         if (parked.size() == 1) {
             question.append("Potwierdź: ").append(parked.get(0).summary()).append(".");
@@ -538,7 +561,7 @@ public class AgentRuntime implements AutoCloseable {
 
     record Parked(ToolCall call, Action action, String summary) {}
 
-    record PendingConfirmation(List<Parked> calls, Instant expiresAt) {
+    record PendingConfirmation(List<Parked> calls, Instant expiresAt, String channel) {
         boolean isExpired(Instant now) {
             return now.isAfter(expiresAt);
         }

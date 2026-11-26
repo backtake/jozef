@@ -22,6 +22,16 @@ import org.springframework.context.annotation.Import;
 public class JozefApplication {
 
     public static void main(String[] args) {
+        if (!SingleInstance.acquire(java.nio.file.Path.of("data", "jozef.lock").toAbsolutePath())) {
+            String message = "Jozef już działa (ikona w zasobniku obok zegara). Druga kopia nie zostanie uruchomiona.";
+            System.err.println(message);
+            if (!java.awt.GraphicsEnvironment.isHeadless()) {
+                javax.swing.JOptionPane.showMessageDialog(null, message, "Jozef",
+                        javax.swing.JOptionPane.INFORMATION_MESSAGE);
+            }
+            System.exit(0);
+            return;
+        }
         // Disable web environment — we are NOT a web application
         SpringApplication app = new SpringApplication(JozefApplication.class);
         app.setWebApplicationType(org.springframework.boot.WebApplicationType.NONE);

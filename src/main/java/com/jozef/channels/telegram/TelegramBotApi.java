@@ -18,7 +18,17 @@ import java.util.Map;
  */
 public class TelegramBotApi {
 
-    public record Update(long updateId, long chatId, String text, String fromName) {}
+    /**
+     * @param dateEpochSeconds when the message was sent (0 if unknown)
+     * @param privateChat      a one-to-one chat (groups are never served)
+     * @param forwarded        forwarded from someone else — data, not the owner's command
+     */
+    public record Update(long updateId, long chatId, String text, String fromName,
+                         long dateEpochSeconds, boolean privateChat, boolean forwarded) {
+        public Update(long updateId, long chatId, String text, String fromName) {
+            this(updateId, chatId, text, fromName, System.currentTimeMillis() / 1000, true, false);
+        }
+    }
 
     private static final int LONG_POLL_SECONDS = 50;
 
@@ -37,7 +47,19 @@ public class TelegramBotApi {
 
     /** Blocks up to ~50 s waiting for new messages after {@code offset}. */
     public List<Update> getUpdates(long offset) throws Exception {
-        String url = baseUrl + "/getUpdates?timeout=" + LONG_POLL_SECONDS + "&offset=" + offset
+        return getUpdates(offset, LONG_POLL_SECONDS);
+    }
+
+    /**
+     * Tells Telegram everything before {@code offset} was received, so a crash while
+     * handling a batch never redelivers (and re-runs) it.
+     */
+    public void acknowledge(long offset) throws Exception {
+        getUpdates(offset, 0);
+    }
+
+    private List<Update> getUpdates(long offset, int timeoutSeconds) throws Exception {
+        String url = baseUrl + "/getUpdates?timeout=" + timeoutSeconds + "&offset=" + offset
                 + "&allowed_updates=%5B%22message%22%5D";
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(LONG_POLL_SECONDS + 15))
@@ -56,13 +78,18 @@ public class TelegramBotApi {
             long id = u.path("update_id").asLong();
             JsonNode message = u.path("message");
             if (message.isMissingNode()) {
-                updates.add(new Update(id, 0, null, null));
+                updates.add(new Update(id, 0, null, null, 0, false, false));
                 continue;
             }
+            boolean forwarded = message.has("forward_origin") || message.has("forward_from")
+                    || message.has("forward_from_chat") || message.has("forward_date");
             updates.add(new Update(id,
                     message.path("chat").path("id").asLong(),
                     message.path("text").isTextual() ? message.path("text").asText() : null,
-                    message.path("from").path("first_name").asText("")));
+                    message.path("from").path("first_name").asText(""),
+                    message.path("date").asLong(0),
+                    "private".equals(message.path("chat").path("type").asText("")),
+                    forwarded));
         }
         return updates;
     }

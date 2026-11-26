@@ -15,9 +15,26 @@ public class WindowsAutostartManager implements AutostartManager {
 
     private static final String RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 
+    /**
+     * Writes the Run value through PowerShell with the command Base64-encoded: passing
+     * a value that contains quotes to reg.exe via ProcessBuilder splits it into
+     * several arguments and the write fails. The value is read back to verify.
+     */
     @Override
     public void enable(String appName, String command) {
-        run("reg", "add", RUN_KEY, "/v", appName, "/t", "REG_SZ", "/d", command, "/f");
+        String b64 = java.util.Base64.getEncoder().encodeToString(command.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String name = appName.replace("'", "''");
+        String script = "$v = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + b64 + "')); "
+                + "Set-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name '" + name
+                + "' -Value $v; "
+                + "if ((Get-ItemProperty -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name '" + name
+                + "').'" + name + "' -ne $v) { exit 3 }";
+        boolean ok = runSucceeds("powershell", "-NoProfile", "-NonInteractive", "-Command", script);
+        if (ok) {
+            log.info("Autostart enabled: {}", command);
+        } else {
+            log.warn("Could not enable autostart (writing HKCU Run failed).");
+        }
     }
 
     @Override
@@ -31,9 +48,10 @@ public class WindowsAutostartManager implements AutostartManager {
     }
 
     /**
-     * Builds the startup command: {@code javaw} (no console window) with the working
-     * directory pinned to the current one — Windows starts Run-key entries in
-     * System32, where Jozef's relative {@code data/} folder would not be found.
+     * Builds the startup command. Windows starts Run-key entries in System32, so the
+     * real working directory is set with {@code start /D} (a {@code -Duser.dir}
+     * property is not enough: java.io, native code such as Vosk and child processes
+     * still use the process directory). {@code javaw} keeps it windowless.
      */
     static String currentJarCommand() {
         Path jar = findBootJar();
@@ -42,7 +60,7 @@ public class WindowsAutostartManager implements AutostartManager {
         }
         Path javaw = Path.of(System.getProperty("java.home"), "bin", "javaw.exe");
         String javaBin = (Files.exists(javaw) ? javaw : Path.of(System.getProperty("java.home"), "bin", "java.exe")).toString();
-        return buildCommand(javaBin, jar.toAbsolutePath().toString(), System.getProperty("user.dir"));
+        return buildCommand(javaBin, jar.toAbsolutePath().toString(), Path.of("").toAbsolutePath().toString());
     }
 
     /** Pure command builder (package-private for tests). */
@@ -56,7 +74,8 @@ public class WindowsAutostartManager implements AutostartManager {
         }
         // A trailing backslash would escape the closing quote.
         String dir = workingDir.replaceAll("[\\\\/]+$", "");
-        return "\"" + javaBin + "\" \"-Duser.dir=" + dir + "\" -jar \"" + jarPath + "\"";
+        String cmd = Path.of(System.getenv().getOrDefault("SystemRoot", "C:\\Windows"), "System32", "cmd.exe").toString();
+        return "\"" + cmd + "\" /c start \"Jozef\" /D \"" + dir + "\" \"" + javaBin + "\" -Xmx512m -jar \"" + jarPath + "\"";
     }
 
     private static Path findBootJar() {

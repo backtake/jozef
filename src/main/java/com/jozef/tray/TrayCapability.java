@@ -138,6 +138,13 @@ public class TrayCapability implements Capability {
             icon.setImageAutoSize(true);
             tray.add(icon);
             this.trayIcon = icon;
+            // Reminders and new-mail notices also appear as Windows notifications — visible
+            // when the speakers are off or listening is paused.
+            eventBus.register(com.jozef.proactive.ProactiveEvent.class, ev -> {
+                String text = ev.message() == null ? "" : ev.message();
+                icon.displayMessage("Jozef", text.length() > 240 ? text.substring(0, 237) + "…" : text,
+                        TrayIcon.MessageType.INFO);
+            });
             log.info("System tray icon added.");
         } catch (Exception e) {
             log.warn("Could not add system tray icon: {}", e.getMessage());

@@ -201,7 +201,9 @@ public class ShortcutStore {
                 Shortcut.website("OLX", "https://www.olx.pl"),
                 Shortcut.website("Wiadomości", "https://www.onet.pl", "onet", "newsy"),
                 Shortcut.website("Pogoda", "https://www.google.com/search?q=pogoda", "prognoza pogody"),
-                Shortcut.website("Twitch", "https://www.twitch.tv", "twicza", "twitcha")
+                Shortcut.website("Twitch", "https://www.twitch.tv", "twicza", "twitcha"),
+                // Windows Phone Link: SMS, calls and phone notifications on the PC.
+                Shortcut.application("Telefon", "Łącze z telefonem", "mój telefon", "łącze z telefonem", "esemesy", "smsy")
         );
     }
 }

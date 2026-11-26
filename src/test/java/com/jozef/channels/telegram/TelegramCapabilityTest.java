@@ -104,6 +104,35 @@ class TelegramCapabilityTest {
     }
 
     @Test
+    void staleForwardedAndGroupMessagesAreNotExecuted() throws Exception {
+        TelegramCapability c = capability(List.of(42L));
+        injectApi(c);
+        long now = System.currentTimeMillis() / 1000;
+
+        c.handle(new TelegramBotApi.Update(1, 42L, "otwórz YouTube", "Owner", now - 3600, true, false));
+        c.handle(new TelegramBotApi.Update(2, 42L, "wyślij maila do szefa", "Owner", now, true, true));
+        c.handle(new TelegramBotApi.Update(3, 42L, "otwórz YouTube", "Owner", now, false, false));
+
+        assertThat(llmCalls).hasValue(0);
+        assertThat(sent).hasSize(2);
+        assertThat(sent.get(0)).contains("Pominąłem");
+        assertThat(sent.get(1)).contains("przekazanych");
+    }
+
+    @Test
+    void parsesUpdateMetadata() throws Exception {
+        List<TelegramBotApi.Update> updates = api.parseUpdates("""
+                {"ok":true,"result":[
+                  {"update_id":5,"message":{"date":1700000000,"chat":{"id":42,"type":"private"},"text":"a"}},
+                  {"update_id":6,"message":{"date":1,"chat":{"id":-9,"type":"group"},"forward_origin":{},"text":"b"}}]}
+                """);
+        assertThat(updates.get(0).privateChat()).isTrue();
+        assertThat(updates.get(0).dateEpochSeconds()).isEqualTo(1700000000L);
+        assertThat(updates.get(1).privateChat()).isFalse();
+        assertThat(updates.get(1).forwarded()).isTrue();
+    }
+
+    @Test
     void parsesUpdates() throws Exception {
         List<TelegramBotApi.Update> updates = api.parseUpdates("""
                 {"ok":true,"result":[

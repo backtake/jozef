@@ -429,6 +429,25 @@ class AgentRuntimeTest {
     }
 
     @Test
+    void confirmationMustComeFromTheChannelThatAsked() {
+        FakeLlm llm = new FakeLlm();
+        ToolRegistry tools = new ToolRegistry();
+        CountingConfirmAction send = new CountingConfirmAction();
+        tools.register(send);
+        llm.enqueue(new ChatResponse("", List.of(ToolCall.of("send_email", Map.of("to", "x")))));
+        llm.enqueue(new ChatResponse("?", List.of()));
+        AgentRuntime agent = agentWith(llm, tools, new ConversationalConfirmationService());
+        agent.process("wyślij maila", "telegram:42");
+        assertThat(agent.hasPendingConfirmation("telegram:42")).isTrue();
+        assertThat(agent.hasPendingConfirmation(AgentRuntime.LOCAL_CHANNEL)).isFalse();
+
+        llm.enqueue(new ChatResponse("Na co tak?", List.of()));
+        agent.process("tak"); // someone at the PC (or the TV) says "tak"
+
+        assertThat(send.executions).isZero();
+    }
+
+    @Test
     void correctionAfterYesIsNotAnApproval() {
         FakeLlm llm = new FakeLlm();
         ToolRegistry tools = new ToolRegistry();

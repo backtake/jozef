@@ -25,6 +25,9 @@ public class TelegramCapability implements Capability {
     private final TelegramProperties props;
     private final AgentRuntime agent;
     private final Function<String, String> env;
+    private static final long MAX_AGE_SECONDS = 180;
+    private static final int MAX_STRANGERS = 100;
+
     private final Set<Long> answeredStrangers = ConcurrentHashMap.newKeySet();
     private volatile boolean running;
     private Thread poller;
@@ -94,8 +97,14 @@ public class TelegramCapability implements Capability {
             try {
                 List<TelegramBotApi.Update> updates = api.getUpdates(offset);
                 backoff = 2_000;
+                if (updates.isEmpty()) continue;
                 for (TelegramBotApi.Update update : updates) {
                     offset = Math.max(offset, update.updateId() + 1);
+                }
+                // Acknowledge first: if Jozef dies mid-batch, nothing is re-run on restart
+                // (a redelivered "wyślij…" + "tak" would send twice).
+                api.acknowledge(offset);
+                for (TelegramBotApi.Update update : updates) {
                     handle(update);
                 }
             } catch (InterruptedException e) {
@@ -124,10 +133,25 @@ public class TelegramCapability implements Capability {
         try {
             if (!props.allowedChatIds().contains(chat)) {
                 log.warn("Telegram message from unknown chat {} ({}) ignored.", chat, update.fromName());
-                if (answeredStrangers.add(chat)) {
+                if (answeredStrangers.size() < MAX_STRANGERS && answeredStrangers.add(chat)) {
                     api.sendMessage(chat, "To jest prywatny asystent. Twój identyfikator czatu: " + chat
                             + ". Jeśli to Twój Jozef, dopisz go w jozef.telegram.allowed-chat-ids i uruchom go ponownie.");
                 }
+                return;
+            }
+            if (!update.privateChat()) {
+                log.warn("Telegram: ignoring a message from non-private chat {}", chat);
+                return; // in a group every member could command Jozef
+            }
+            if (update.forwarded()) {
+                api.sendMessage(chat, "Nie wykonuję przekazanych wiadomości — napisz polecenie sam.");
+                return;
+            }
+            long ageSeconds = System.currentTimeMillis() / 1000 - update.dateEpochSeconds();
+            if (update.dateEpochSeconds() > 0 && ageSeconds > MAX_AGE_SECONDS) {
+                // PC was asleep/offline: a stale "otwórz…" or "przypomnij za 10 minut" must not fire hours later.
+                api.sendMessage(chat, "Pominąłem wiadomość sprzed " + (ageSeconds / 60)
+                        + " min (komputer był niedostępny): „" + abbreviate(update.text()) + "”. Wyślij ją ponownie, jeśli nadal aktualna.");
                 return;
             }
             String text = update.text().trim();
@@ -136,12 +160,17 @@ public class TelegramCapability implements Capability {
                         + "\"otwórz YouTube\" (otworzy się na komputerze), \"przypomnij mi za godzinę o praniu\".");
                 return;
             }
-            AgentResult result = agent.process(text);
+            AgentResult result = agent.process(text, "telegram:" + chat);
             String reply = result.text() == null || result.text().isBlank() ? "Gotowe." : result.text();
             api.sendMessage(chat, reply.replace("Powiedz tak albo nie.", "Odpisz: tak albo nie."));
         } catch (Exception e) {
-            log.warn("Telegram message handling failed: {}", e.getMessage());
+            log.warn("Telegram message handling failed ({})", e.getClass().getSimpleName());
         }
+    }
+
+    private static String abbreviate(String text) {
+        String t = text.trim();
+        return t.length() > 60 ? t.substring(0, 57) + "…" : t;
     }
 
     @Override

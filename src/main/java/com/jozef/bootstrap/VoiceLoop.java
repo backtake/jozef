@@ -144,7 +144,7 @@ public class VoiceLoop implements Runnable {
                 // or another person must not approve anything — then "hej Józef, tak" is needed.
                 boolean freshQuestion = speakingMonitor == null
                         || started - speakingMonitor.lastSpokeUntil() < ANSWER_WINDOW_MILLIS;
-                boolean awaitingAnswer = wakeWordDetector != null && agent.hasPendingConfirmation() && freshQuestion;
+                boolean awaitingAnswer = wakeWordDetector != null && agent.hasPendingConfirmation(AgentRuntime.LOCAL_CHANNEL) && freshQuestion;
                 if (wakeWordDetector != null && !awaitingAnswer) {
                     input = wakeWordDetector.awaitWakeWord();
                     if (input != null && input.isBlank() && !paused.get()) {
