@@ -119,6 +119,23 @@ Błędne założenia biznesowe:
 6. Nie testowałem na żywo (wymaga Ciebie / kont): logowania Google, wysyłki maili, bota Telegram, mikrofonu
    z Vosk, rzeczywistego wpisu autostartu w rejestrze (logikę zapisu sprawdziłem na kluczu testowym).
 
+## Pod kątem sprzedaży (projekt automatyzacji AI) — co już jest, czego brakuje
+
+Już jest (pomaga przy produkcie): wymienni dostawcy LLM (Claude/OpenAI/DeepSeek/Ollama), kanały wejścia
+oddzielone od rdzenia (głos/okienko/Telegram), konfiguracja w YAML + skróty użytkownika w pliku, brak
+danych osobistych w kodzie, polskie komunikaty o awariach, `jozef_status` (wsparcie techniczne), testy
+offline (~255).
+
+Brakuje przed sprzedażą:
+1. Zgoda na wysyłanie danych do chmury przy pierwszym starcie (dziś tylko WARN w logu w trybie `auto`).
+2. Instalator (jpackage/MSI z wbudowaną Javą) — dziś wymaga JDK 21 i `gradlew bootJar`.
+3. Konfiguracja przez GUI (klucze API, miasto, Telegram) zamiast edycji YAML/zmiennych środowiskowych.
+4. Google: weryfikacja aplikacji OAuth przez Google (zakresy Gmail są „restricted”) albo każdy klient
+   tworzy własnego klienta OAuth — to bariera dla nietechnicznych.
+5. Model kosztów: klucz API per klient z limitem (zgodnie z notatką o ofercie automatyzacji).
+6. Licencje zależności do przejrzenia (JNativeHook — LGPL, Vosk/Playwright — Apache 2.0).
+7. Logi diagnostyczne bez treści rozmów (dziś INFO loguje treść poleceń).
+
 ## Znane drobne ograniczenia (świadomie zostawione)
 
 - Telefon i PC dzielą jedną historię rozmowy; poziom „effort” Claude na sztywno `low`.
