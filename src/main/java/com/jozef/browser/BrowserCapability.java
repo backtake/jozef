@@ -126,9 +126,17 @@ public class BrowserCapability implements Capability {
             }).join('\\n')
             """;
 
-    private static final java.util.Map<String, Boolean> PUBLIC_HOSTS = new java.util.concurrent.ConcurrentHashMap<>();
+    private record HostVerdict(boolean isPublic, long expiresAt) {}
 
-    /** {@link #isPublicAddress} with a per-host cache (pages load dozens of resources per host). */
+    private static final java.util.Map<String, HostVerdict> PUBLIC_HOSTS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long HOST_TTL_MILLIS = 60_000;
+
+    /**
+     * {@link #isPublicAddress} with a short per-host cache (pages load dozens of resources per
+     * host). Only definite answers are cached, for 60 s: a lookup that failed (offline right
+     * after wake-up) is retried next time instead of blocking the host for the whole session,
+     * and the TTL narrows DNS-rebinding windows.
+     */
     static boolean isPublicAddressCached(String url) {
         String host;
         try {
@@ -137,8 +145,32 @@ public class BrowserCapability implements Capability {
             return false;
         }
         if (host == null) return false;
+        String key = host.toLowerCase();
+        long now = System.currentTimeMillis();
+        HostVerdict cached = PUBLIC_HOSTS.get(key);
+        if (cached != null && cached.expiresAt() > now) {
+            return cached.isPublic();
+        }
+        Boolean verdict = resolveVerdict(url);
+        if (verdict == null) {
+            return false; // lookup failed — refuse now, ask DNS again next time
+        }
         if (PUBLIC_HOSTS.size() > 2000) PUBLIC_HOSTS.clear();
-        return PUBLIC_HOSTS.computeIfAbsent(host.toLowerCase(), h -> isPublicAddress(url));
+        PUBLIC_HOSTS.put(key, new HostVerdict(verdict, now + HOST_TTL_MILLIS));
+        return verdict;
+    }
+
+    /** true/false when certain, {@code null} when the host could not be resolved right now. */
+    private static Boolean resolveVerdict(String url) {
+        try {
+            String host = java.net.URI.create(url).getHost();
+            java.net.InetAddress.getAllByName(host);
+        } catch (java.net.UnknownHostException e) {
+            return null;
+        } catch (Exception e) {
+            return false;
+        }
+        return isPublicAddress(url);
     }
 
     /** True when every address the host resolves to is a public internet address. */

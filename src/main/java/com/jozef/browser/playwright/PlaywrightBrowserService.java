@@ -52,7 +52,8 @@ public class PlaywrightBrowserService implements BrowserService {
 
         if (profileDir != null && !profileDir.isBlank()) {
             BrowserType.LaunchPersistentContextOptions options =
-                    new BrowserType.LaunchPersistentContextOptions().setHeadless(headless);
+                    new BrowserType.LaunchPersistentContextOptions().setHeadless(headless)
+                            .setServiceWorkers(com.microsoft.playwright.options.ServiceWorkerPolicy.BLOCK);
             if (channel != null && !channel.isBlank()) {
                 options.setChannel(channel);
             }
@@ -70,7 +71,9 @@ public class PlaywrightBrowserService implements BrowserService {
                 options.setExecutablePath(Path.of(executablePath));
             }
             browser = chromium.launch(options);
-            context = browser.newContext();
+            // Service workers would bypass the request filter.
+            context = browser.newContext(new Browser.NewContextOptions()
+                    .setServiceWorkers(com.microsoft.playwright.options.ServiceWorkerPolicy.BLOCK));
             page = context.newPage();
         }
 
