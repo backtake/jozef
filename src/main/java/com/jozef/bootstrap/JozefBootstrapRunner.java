@@ -28,6 +28,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
     private final SpeechCapability speech;
     private final EventBus eventBus;
     private final ShortcutStore shortcuts;
+    private final com.jozef.google.GoogleCapability google;
     private final String wakeWord;
 
     public JozefBootstrapRunner(ApplicationLifecycle lifecycle,
@@ -36,6 +37,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
                                 SpeechCapability speech,
                                 EventBus eventBus,
                                 ShortcutStore shortcuts,
+                                com.jozef.google.GoogleCapability google,
                                 @Value("${jozef.wakeword.word:hej jozef}") String wakeWord) {
         this.wakeWord = wakeWord;
         this.lifecycle = lifecycle;
@@ -44,6 +46,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
         this.speech = speech;
         this.eventBus = eventBus;
         this.shortcuts = shortcuts;
+        this.google = google;
     }
 
     @Override
@@ -78,6 +81,7 @@ public class JozefBootstrapRunner implements CommandLineRunner {
                     eventBus.publish(new CoreEvents.ListeningStateChanged(voiceLoop.isPaused()));
                 }
                 case OPEN_SHORTCUTS_FILE -> openInEditor(shortcuts.file().toAbsolutePath().toString());
+                case CONNECT_GOOGLE -> google.startSetupInBackground();
             }
         });
 

@@ -30,6 +30,9 @@ class MediaCommandsTest {
         assertThat(media.resolve("puść coś spokojnego do pracy")).isEmpty();
         assertThat(media.resolve("stop")).isEmpty(); // "stop" also cancels confirmations — not a media key
         assertThat(media.resolve("dalej")).isEmpty();
+        assertThat(media.resolve("następny")).isEmpty();      // may answer "przeczytać następny mail?"
+        assertThat(media.resolve("puść muzykę")).isEmpty();   // toggle would pause playing music
+        assertThat(media.resolve("włącz dźwięk")).isEmpty();  // toggle would mute
     }
 
     @Test
@@ -44,5 +47,14 @@ class MediaCommandsTest {
         assertThat(sent).hasSize(2);
         assertThat(sent.get(0)).containsExactly(0xAF, 3);
         assertThat(sent.get(1)).containsExactly(0xB0, 1);
+    }
+
+    @Test
+    void realKeysArePressedNotCharactersTyped() {
+        String script = MediaControlAction.script(0xB3, 1);
+        assertThat(script).contains("keybd_event(179, 0, 1").contains("keybd_event(179, 0, 3").doesNotContain("SendKeys");
+        String decoded = new String(java.util.Base64.getDecoder().decode(MediaControlAction.encodedCommand(script)),
+                java.nio.charset.StandardCharsets.UTF_16LE);
+        assertThat(decoded).isEqualTo(script);
     }
 }

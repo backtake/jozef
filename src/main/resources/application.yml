@@ -73,7 +73,7 @@ jozef:
   # ─── Browser (Playwright) ───────────────────────────
   browser:
     enabled: true
-    headless: false                # true = ukryta przeglądarka
+    headless: true                 # true = czytanie stron w tle (strony dla użytkownika otwiera open_url w jego przeglądarce)
     channel: chrome                # chrome | msedge | (puste = bundled chromium)
     profile-dir: ""                # opcjonalny trwały profil (zalogowane sesje)
     executable-path: ""            # ścieżka do binary (np. Brave) — nadpisuje channel
@@ -84,7 +84,7 @@ jozef:
     tokens-file: data/google-tokens.json   # zapisane tokeny OAuth (git-ignored)
     calendar-id: primary
     credentials-file: data/google-credentials.json  # JSON pobrany z Google Cloud Console
-    authenticate-on-startup: true          # przy starcie otwórz logowanie Google w przeglądarce
+    authenticate-on-startup: true          # tylko przy PIERWSZYM starcie: kreator Google w tle (nie blokuje); potem "połącz się z Google" / tray
     # client-id / client-secret są czytane w kolejności:
     #   1. GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (env)
     #   2. pola client-id / client-secret poniżej (tylko dev, nie commitować)

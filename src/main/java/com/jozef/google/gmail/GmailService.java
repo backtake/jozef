@@ -191,7 +191,7 @@ public class GmailService {
      */
     static String buildMimeMessage(String to, String subject, String body, String inReplyTo) {
         StringBuilder sb = new StringBuilder();
-        sb.append("To: ").append(headerValue(to)).append("\r\n");
+        sb.append("To: ").append(encodeAddress(headerValue(to))).append("\r\n");
         sb.append("Subject: ").append(encodeHeaderWord(headerValue(subject))).append("\r\n");
         if (inReplyTo != null && !inReplyTo.isBlank()) {
             String id = headerValue(inReplyTo);
@@ -212,10 +212,47 @@ public class GmailService {
         return value.replaceAll("[\\r\\n\\u0000-\\u001f\\u007f]+", " ").trim();
     }
 
+    /**
+     * RFC 2047 encoded-words, each at most 75 characters (≤ 45 UTF-8 bytes of text, never
+     * splitting a character), folded with CRLF + space. ASCII text is returned unchanged.
+     */
     static String encodeHeaderWord(String value) {
         boolean ascii = value.chars().allMatch(c -> c >= 0x20 && c < 0x7f);
-        return ascii ? value
-                : "=?UTF-8?B?" + Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8)) + "?=";
+        if (ascii) return value;
+        StringBuilder out = new StringBuilder();
+        StringBuilder chunk = new StringBuilder();
+        int chunkBytes = 0;
+        for (int i = 0; i < value.length(); ) {
+            int cp = value.codePointAt(i);
+            String ch = new String(Character.toChars(cp));
+            int bytes = ch.getBytes(StandardCharsets.UTF_8).length;
+            if (chunkBytes + bytes > 45) {
+                appendWord(out, chunk.toString());
+                chunk.setLength(0);
+                chunkBytes = 0;
+            }
+            chunk.append(ch);
+            chunkBytes += bytes;
+            i += Character.charCount(cp);
+        }
+        appendWord(out, chunk.toString());
+        return out.toString();
+    }
+
+    private static void appendWord(StringBuilder out, String text) {
+        if (text.isEmpty()) return;
+        if (out.length() > 0) out.append("\r\n ");
+        out.append("=?UTF-8?B?").append(Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8))).append("?=");
+    }
+
+    /** "Józef Kowalski <j@x.pl>" → encoded display name + raw address. */
+    static String encodeAddress(String address) {
+        int lt = address.lastIndexOf('<');
+        if (lt > 0 && address.endsWith(">")) {
+            String name = address.substring(0, lt).trim().replaceAll("^\"|\"$", "");
+            return encodeHeaderWord(name) + " " + address.substring(lt);
+        }
+        return address;
     }
 
     /**

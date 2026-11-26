@@ -52,8 +52,49 @@ public class BrowserCapability implements Capability {
         }
 
         browser = new PlaywrightBrowserService(props.headless(), props.channel(), props.profileDir(), props.executablePath());
-        registerTools();
+        registerReadingTools();
+        if (Boolean.getBoolean("jozef.browser.advanced-tools")
+                || "true".equalsIgnoreCase(System.getenv("JOZEF_BROWSER_ADVANCED_TOOLS"))) {
+            registerTools();
+        }
         log.info("Browser capability initialized ({} tools registered).", toolRegistry.size());
+    }
+
+    /**
+     * Two high-level tools instead of nine low-level ones: a model that cannot see the
+     * DOM cannot use CSS selectors well, and every extra tool makes small models choose
+     * worse. Opening a site FOR the user is open_url (their own browser and logins).
+     */
+    private void registerReadingTools() {
+        toolRegistry.register(action("read_web_page",
+                "Read the text of a web page (in the background) to answer a question about it: an article, "
+                        + "a recipe, opening hours. Not for showing a page to the user — use open_url for that.",
+                new ToolParameters().string("url", "Full http(s) address", true).build(),
+                ctx -> {
+                    String url = ctx.getString("url");
+                    if (url == null || !(url.startsWith("http://") || url.startsWith("https://"))) {
+                        return ActionResult.fail("Only http(s) addresses can be read");
+                    }
+                    browser.navigate(url);
+                    return ActionResult.ok(browser.getPageTitle() + "\n" + limit(browser.getPageText(), 8000));
+                }).withTimeoutSeconds(60));
+
+        toolRegistry.register(action("web_lookup",
+                "Search the web in the background and return the result titles, links and snippets, for questions "
+                        + "that need current information (news, prices, opening hours, facts you are unsure about). "
+                        + "Follow up with read_web_page on the best link when needed.",
+                new ToolParameters().string("query", "Search query", true).build(),
+                ctx -> {
+                    String q = java.net.URLEncoder.encode(ctx.getString("query"), java.nio.charset.StandardCharsets.UTF_8);
+                    browser.navigate("https://www.bing.com/search?setlang=pl&q=" + q);
+                    return ActionResult.ok(limit(browser.getPageText(), 6000));
+                }).withTimeoutSeconds(60));
+    }
+
+    private static String limit(String text, int max) {
+        if (text == null) return "";
+        String t = text.replaceAll("[ \\t]+", " ").replaceAll("\\n{3,}", "\n\n").trim();
+        return t.length() > max ? t.substring(0, max) + "…" : t;
     }
 
     private void registerTools() {
@@ -104,7 +145,7 @@ public class BrowserCapability implements Capability {
                 ctx -> { String path = browser.screenshot(); return ActionResult.ok("Screenshot saved to " + path, path); }));
     }
 
-    private Action action(String name, String description, java.util.Map<String, Object> schema,
+    private LambdaAction action(String name, String description, java.util.Map<String, Object> schema,
                           java.util.function.Function<ActionContext, ActionResult> executor) {
         return new LambdaAction(name, description, schema, Set.of("BROWSER"), ExecutionStrategy.SAFE, executor);
     }

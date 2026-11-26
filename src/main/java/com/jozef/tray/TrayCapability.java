@@ -126,6 +126,9 @@ public class TrayCapability implements Capability {
                 }
             }, "jozef-autostart").start());
             menu.add(startWithWindows);
+            MenuItem google = new MenuItem("Połącz z Google (Gmail, Kalendarz)…");
+            google.addActionListener(e -> eventBus.publish(new CoreEvents.UiRequest(CoreEvents.UiRequest.Kind.CONNECT_GOOGLE)));
+            menu.add(google);
             MenuItem shortcuts = new MenuItem("Edytuj skróty (strony i programy)…");
             shortcuts.addActionListener(e -> eventBus.publish(new CoreEvents.UiRequest(CoreEvents.UiRequest.Kind.OPEN_SHORTCUTS_FILE)));
             menu.add(shortcuts);

@@ -39,6 +39,22 @@ class GmailServiceTest {
     }
 
     @Test
+    void longSubjectsAreSplitIntoValidEncodedWordsAndNamesEncoded() {
+        String subject = "Zażółć gęślą jaźń — bardzo długi temat wiadomości o urlopie i spotkaniu";
+        String encoded = GmailService.encodeHeaderWord(subject);
+        StringBuilder decoded = new StringBuilder();
+        for (String word : encoded.split("\r\n ")) {
+            assertThat(word.length()).isLessThanOrEqualTo(75);
+            String b64 = word.substring("=?UTF-8?B?".length(), word.length() - 2);
+            decoded.append(new String(java.util.Base64.getDecoder().decode(b64), java.nio.charset.StandardCharsets.UTF_8));
+        }
+        assertThat(decoded.toString()).isEqualTo(subject);
+
+        assertThat(GmailService.encodeAddress("Józef Kowalski <j@x.pl>")).startsWith("=?UTF-8?B?").endsWith(" <j@x.pl>");
+        assertThat(GmailService.encodeAddress("ania@example.com")).isEqualTo("ania@example.com");
+    }
+
+    @Test
     void replyGoesToReplyToInTheSameThread() {
         java.util.Map<String, Object> original = java.util.Map.of(
                 "threadId", "t-1",

@@ -105,6 +105,13 @@ public class PlaywrightBrowserService implements BrowserService {
         openIfNeeded();
         log.info("Navigating to {}", url);
         page.navigate(url);
+        // Many pages (search results, news) render their content with JavaScript after "load".
+        try {
+            page.waitForLoadState(com.microsoft.playwright.options.LoadState.NETWORKIDLE,
+                    new Page.WaitForLoadStateOptions().setTimeout(8_000));
+        } catch (com.microsoft.playwright.TimeoutError ignored) {
+            // busy pages never go idle — read whatever has rendered
+        }
     }
 
     @Override

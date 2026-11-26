@@ -69,6 +69,7 @@ public class WeatherAction implements Action {
     public ActionResult execute(ActionContext context) {
         String city = context.getString("city");
         if (city == null || city.isBlank()) city = defaultCity;
+        if (city.contains(",")) city = city.substring(0, city.indexOf(',')).trim(); // "Kraków, Polska" → "Kraków"
         if (city.isBlank()) {
             return ActionResult.fail("No city given and no default city configured (jozef.weather.city) — ask the user which city");
         }
@@ -95,8 +96,11 @@ public class WeatherAction implements Action {
                     .append(describe(daily.path("weather_code").path(index).asInt(-1)))
                     .append(", od ").append(Math.round(daily.path("temperature_2m_min").path(index).asDouble()))
                     .append(" do ").append(Math.round(daily.path("temperature_2m_max").path(index).asDouble()))
-                    .append("°C, szansa opadów ").append(daily.path("precipitation_probability_max").path(index).asInt())
-                    .append("%");
+                    .append("°C");
+            JsonNode rain = daily.path("precipitation_probability_max").path(index);
+            if (rain.isNumber()) {
+                sb.append(", szansa opadów ").append(rain.asInt()).append("%");
+            }
             if (index == 0 && forecast.path("current").has("temperature_2m")) {
                 sb.append(". Teraz ").append(Math.round(forecast.path("current").path("temperature_2m").asDouble()))
                         .append("°C, ").append(describe(forecast.path("current").path("weather_code").asInt(-1)));

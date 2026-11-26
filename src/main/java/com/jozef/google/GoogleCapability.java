@@ -88,56 +88,90 @@ public class GoogleCapability implements Capability {
             }
         }
 
-        // First-run: no credentials anywhere → automatic browser-driven setup.
-        if (isBlank(clientId) || isBlank(clientSecret)) {
-            if (props.authenticateOnStartup()) {
-                log.info("Brak danych logowania Google — uruchamiam automatyczną konfigurację.\n"
-                        + "  1. W przeglądarce otworzy się Google Cloud Console.\n"
-                        + "  2. Utwórz dane logowania 'OAuth client ID' typu 'Desktop app'.\n"
-                        + "  3. Kliknij 'Pobierz JSON' — plik trafi do folderu Pobrane.\n"
-                        + "     (Nic nie musisz wpisywać — Jozef sam znajdzie plik i się zaloguje.)");
-                GoogleCredentialsSetup.openConsoleInBrowser();
-                GoogleCredentialsFile found = GoogleCredentialsSetup.findDownloadedCredentials(600_000L);
-                if (found != null) {
-                    GoogleCredentialsSetup.save(props.credentialsFile(), found);
-                    clientId = found.clientId();
-                    clientSecret = found.clientSecret();
-                    log.info("Znaleziono i zapisano dane logowania Google.");
-                } else {
-                    log.warn("Nie znaleziono pliku credentials w wyznaczonym czasie. "
-                            + "Jozef uruchomi się bez Google — konfigurację powtórzy przy następnym starcie.");
-                }
-            } else {
-                log.warn("Google capability skipped — authenticate-on-startup jest wyłączone.");
-            }
-        }
+        registerConnectTool();
 
         if (isBlank(clientId) || isBlank(clientSecret)) {
-            log.warn("Google capability skipped — brak danych logowania. "
-                    + "Aby włączyć kalendarz i Gmaila, uruchom Jozefa w trybie interaktywnym.");
+            // Never block startup and never open a browser on every boot: the guided setup
+            // runs in the background once (first run); afterwards only on request
+            // ("Józef, połącz się z Google" / tray).
+            if (props.authenticateOnStartup() && !setupAlreadyOffered()) {
+                markSetupOffered();
+                startSetupInBackground();
+            } else {
+                log.info("Google nie jest połączone — powiedz \"połącz się z Google\", żeby to skonfigurować.");
+            }
             return;
         }
+        connect(clientId, clientSecret);
+    }
 
+    /** Creates the Google services and registers their tools (may run after startup). */
+    private synchronized void connect(String clientId, String clientSecret) {
+        if (this.auth != null) return;
         this.auth = new GoogleAuthService(clientId, clientSecret, new GoogleTokenStore(props.tokensFile()));
         this.calendar = new GoogleCalendarService(auth, props.calendarId());
         this.gmail = new GmailService(auth);
-
         registerCalendarTools();
         registerGmailTools();
+        // OAuth consent happens lazily on the first Google request — not at boot.
+        log.info("Google capability ready (calendar + gmail, {} tools total).", toolRegistry.size());
+    }
 
-        if (props.authenticateOnStartup()) {
-            // Force the Google login at startup: block until the browser consent
-            // flow completes (or fails/cancels), then continue booting.
-            try {
-                auth.accessToken();
-                log.info("Google authentication ready.");
-            } catch (Exception e) {
-                log.error("Google startup authentication failed: {}", e.getMessage(), e);
-                log.warn("Jozef uruchomi się bez Kalendarza/Gmaila — zalogujesz się przy następnym starcie.");
+    private volatile Thread setupThread;
+
+    /** Guided first-time setup: open the Cloud Console, wait for the downloaded JSON, connect. */
+    public synchronized boolean startSetupInBackground() {
+        if (auth != null || (setupThread != null && setupThread.isAlive())) return false;
+        setupThread = new Thread(() -> {
+            log.info("Konfiguracja Google: w przeglądarce otwiera się Google Cloud Console. Utwórz 'OAuth client ID' "
+                    + "typu 'Desktop app' i kliknij 'Pobierz JSON' — Jozef sam znajdzie plik w Pobranych.");
+            GoogleCredentialsSetup.openConsoleInBrowser();
+            GoogleCredentialsFile found = GoogleCredentialsSetup.findDownloadedCredentials(600_000L);
+            if (found == null) {
+                log.warn("Nie znaleziono pobranego pliku z danymi Google w ciągu 10 minut.");
+                return;
             }
-        }
+            GoogleCredentialsSetup.save(props.credentialsFile(), found);
+            connect(found.clientId(), found.clientSecret());
+        }, "jozef-google-setup");
+        setupThread.setDaemon(true);
+        setupThread.start();
+        return true;
+    }
 
-        log.info("Google capability initialized (calendar + gmail, {} tools total).", toolRegistry.size());
+    private void registerConnectTool() {
+        toolRegistry.register(action("google_connect",
+                "Connect Jozef to the user's Google account (Gmail + Calendar). Use when the user asks to set up "
+                        + "or connect Google, or a Gmail/Calendar request fails because Google is not connected.",
+                null, Set.of("GOOGLE_SETUP"), ExecutionStrategy.SAFE,
+                ctx -> {
+                    if (auth != null) return ActionResult.ok("Google is already connected.");
+                    return startSetupInBackground()
+                            ? ActionResult.ok("Google setup started: a browser window opened with Google Cloud Console. "
+                            + "Tell the user to create an OAuth client ID of type Desktop app and click Download JSON; "
+                            + "Jozef will pick the file up automatically.")
+                            : ActionResult.ok("Google setup is already in progress in the browser.");
+                }));
+    }
+
+    private java.nio.file.Path setupMarker() {
+        java.nio.file.Path creds = java.nio.file.Path.of(props.credentialsFile() == null
+                ? "data/google-credentials.json" : props.credentialsFile());
+        java.nio.file.Path dir = creds.toAbsolutePath().getParent();
+        return (dir == null ? java.nio.file.Path.of(".") : dir).resolve("google-setup-offered");
+    }
+
+    private boolean setupAlreadyOffered() {
+        return java.nio.file.Files.exists(setupMarker());
+    }
+
+    private void markSetupOffered() {
+        try {
+            java.nio.file.Files.createDirectories(setupMarker().getParent());
+            java.nio.file.Files.writeString(setupMarker(), java.time.Instant.now().toString());
+        } catch (Exception e) {
+            log.debug("Cannot write {}: {}", setupMarker(), e.getMessage());
+        }
     }
 
     private void registerCalendarTools() {

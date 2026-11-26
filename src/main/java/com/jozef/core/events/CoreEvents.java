@@ -41,7 +41,7 @@ public final class CoreEvents {
 
     /** Something in the desktop UI (tray menu) asks the runtime to do something. */
     public record UiRequest(Kind kind) implements Event {
-        public enum Kind { OPEN_COMMAND_WINDOW, TOGGLE_LISTENING, OPEN_SHORTCUTS_FILE }
+        public enum Kind { OPEN_COMMAND_WINDOW, TOGGLE_LISTENING, OPEN_SHORTCUTS_FILE, CONNECT_GOOGLE }
         @Override public String description() { return "UiRequest(" + kind + ")"; }
     }
 

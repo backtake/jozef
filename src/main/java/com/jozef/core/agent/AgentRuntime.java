@@ -176,6 +176,7 @@ public class AgentRuntime implements AutoCloseable {
             return AgentResult.reply("");
         }
         currentChannel = channel == null ? LOCAL_CHANNEL : channel;
+        otherChannelPending = null; // never resurrect a question left over by a turn that failed with an exception
 
         eventBus.publish(new AgentEvents.UserCommandReceived(userMessage));
         List<ChatMessage> history = historyMessages();

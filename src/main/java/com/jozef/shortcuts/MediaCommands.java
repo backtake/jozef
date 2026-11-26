@@ -17,17 +17,18 @@ public class MediaCommands implements FastPath {
     private static final Map<String, String> PHRASES = Map.ofEntries(
             Map.entry("glosniej", "volume_up"), Map.entry("podglos", "volume_up"), Map.entry("zrob glosniej", "volume_up"),
             Map.entry("ciszej", "volume_down"), Map.entry("scisz", "volume_down"), Map.entry("zrob ciszej", "volume_down"),
-            Map.entry("pauza", "play_pause"), Map.entry("wstrzymaj muzyke", "play_pause"), Map.entry("zatrzymaj muzyke", "play_pause"),
-            Map.entry("wznow muzyke", "play_pause"), Map.entry("graj dalej", "play_pause"), Map.entry("pusc muzyke", "play_pause"),
-            Map.entry("nastepna", "next"), Map.entry("nastepny", "next"), Map.entry("nastepna piosenka", "next"),
-            Map.entry("nastepny utwor", "next"), Map.entry("przewin dalej", "next"),
-            Map.entry("poprzednia", "previous"), Map.entry("poprzedni", "previous"), Map.entry("poprzednia piosenka", "previous"),
-            Map.entry("poprzedni utwor", "previous"),
-            Map.entry("wycisz", "mute"), Map.entry("wylacz dzwiek", "mute"), Map.entry("wlacz dzwiek", "mute"));
+            // Play/pause and mute are toggles: only neutral words, never "puść"/"włącz",
+            // which would do the opposite when music is already playing / sound is on.
+            Map.entry("pauza", "play_pause"), Map.entry("play pauza", "play_pause"),
+            // Bare "następny"/"poprzedni" are left to the model — they are also answers
+            // ("przeczytać następny mail?" — "następny").
+            Map.entry("nastepna piosenka", "next"), Map.entry("nastepny utwor", "next"), Map.entry("nastepny kawalek", "next"),
+            Map.entry("poprzednia piosenka", "previous"), Map.entry("poprzedni utwor", "previous"),
+            Map.entry("wycisz", "mute"), Map.entry("przelacz wyciszenie", "mute"));
 
     private static final Map<String, String> REPLIES = Map.of(
-            "volume_up", "Głośniej.", "volume_down", "Ciszej.", "play_pause", "Dobrze.",
-            "next", "Następny utwór.", "previous", "Poprzedni utwór.", "mute", "Dobrze.");
+            "volume_up", "Głośniej.", "volume_down", "Ciszej.", "play_pause", "Przełączam odtwarzanie.",
+            "next", "Następny utwór.", "previous", "Poprzedni utwór.", "mute", "Przełączam wyciszenie.");
 
     @Override
     public Optional<Resolved> resolve(String utterance) {
