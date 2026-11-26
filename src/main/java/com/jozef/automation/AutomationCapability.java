@@ -3,6 +3,7 @@ package com.jozef.automation;
 import com.jozef.automation.actions.CloseApplicationAction;
 import com.jozef.automation.actions.OpenApplicationAction;
 import com.jozef.automation.actions.OpenUrlAction;
+import com.jozef.automation.actions.MediaControlAction;
 import com.jozef.automation.launch.Launcher;
 import com.jozef.shortcuts.ShortcutStore;
 import com.jozef.shortcuts.ShortcutTools;
@@ -63,6 +64,7 @@ public class AutomationCapability implements Capability {
         toolRegistry.register(new OpenApplicationAction(launcher, shortcuts));
         toolRegistry.register(new OpenUrlAction(launcher, shortcuts));
         toolRegistry.register(new SearchWebAction(launcher));
+        toolRegistry.register(new MediaControlAction());
         ShortcutTools.create(shortcuts).forEach(toolRegistry::register);
 
         automation = switch (platform.toLowerCase()) {

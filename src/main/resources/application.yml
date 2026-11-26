@@ -129,6 +129,10 @@ jozef:
     max-attempts: 3                # ile razy replanować po błędzie
     file: data/plans.json          # trwały zapis planów (przetrwają restart)
 
+  # ─── Pogoda (Open-Meteo, bez klucza) ──────────────
+  weather:
+    city: ""                       # domyślne miasto, np. "Rzeszów" — wtedy "jaka jutro pogoda?" wystarczy
+
   # ─── Telefon (prywatny bot Telegram) ──────────────
   # 1) W Telegramie napisz do @BotFather: /newbot → dostaniesz token.
   # 2) Ustaw zmienną środowiskową TELEGRAM_BOT_TOKEN=<token> (nigdy nie wpisuj tokenu tutaj).

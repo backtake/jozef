@@ -51,23 +51,22 @@ Błędne założenia biznesowe:
 
 ## Backlog (kolejność realizacji)
 
-- [ ] P0-1 LLM: ToolCall z id, poprawny protokół OpenAI (tool_call_id), timeouty, błędy jako wyjątki
-      (fallback działa, użytkownik słyszy ludzki komunikat), testy mapowania.
-- [ ] P0-2 Edge TTS: Sec-MS-GEC + fallback na Windows TTS; test sieciowy nie może łamać builda.
-- [ ] P0-3 System prompt: data/godzina/strefa/dzień tygodnia, zasady użycia narzędzi, PL.
-- [ ] P0-4 Potwierdzenia rozmową (oczekujące potwierdzenie w sesji, "tak"/"nie" w kolejnej turze),
-      działa z głosem, okienkiem i telefonem.
-- [ ] P0-5 Timeout narzędzi (tool-timeout-seconds).
-- [ ] P1-1 Skróty użytkownika: data/shortcuts.yml (strony, programy, frazy) + `open_url` (domyślna
-      przeglądarka) + szybka ścieżka bez LLM dla "otwórz/uruchom X".
-- [ ] P1-2 Wykrywanie zainstalowanych programów (Menu Start .lnk) dla open_application.
-- [ ] P1-3 Okienko poleceń (hotkey) — wejście tekstowe niezależne od konsoli; tray "Napisz polecenie".
-- [ ] P1-4 Adapter Anthropic (spec BMAD CAP-1) + rozsądny wybór modelu.
-- [ ] P2-1 Dostęp z telefonu: bot Telegram (whitelist chat id, token z env) jako kanał wejścia.
-- [ ] P2-2 Powiadomienia Windows (toast) dla proaktywnych komunikatów.
-- [ ] P2-3 Diagnostyka startu ("doctor"): co działa, czego brakuje, jak naprawić.
-- [ ] P2-4 Uruchamianie bez IDE (skrypt startowy/jar, autostart z javaw).
-- [ ] P2-5 Adapter Gemini (spec BMAD CAP-2).
+- [x] P0-1 LLM: ToolCall z id, protokół OpenAI (tool_call_id), timeouty, błędy jako wyjątki.
+- [x] P0-2 TTS: Edge zablokowany (DRM) → OpenAI TTS → Windows TTS (Paulina) → konsola.
+- [x] P0-3 System prompt: data/godzina/strefa/dzień tygodnia, zasady narzędzi.
+- [x] P0-4 Potwierdzenia rozmową (pytanie budowane w kodzie, kanał, 20 s okno głosowe).
+- [x] P0-5 Timeout narzędzi + OUTCOME UNKNOWN dla ryzykownych.
+- [x] P1-1 Skróty użytkownika (data/shortcuts.yml) + open_url + szybka ścieżka bez LLM.
+- [x] P1-2 Programy z Menu Start (Get-StartApps, shell:AppsFolder).
+- [x] P1-3 Okienko poleceń (Ctrl+Alt+J) + tray (pauza mikrofonu, autostart, edycja skrótów).
+- [x] P1-4 Adapter Anthropic (claude-opus-5-5) + tryb auto.
+- [x] P2-1 Telefon: bot Telegram (whitelist, ack, stale, tylko prywatne).
+- [x] P2-2 Powiadomienia Windows (dymek z traya).
+- [x] P2-3 Narzędzie jozef_status ("co u ciebie działa?") + polskie podpowiedzi błędów LLM.
+- [x] P2-4 Autostart (start /D, javaw), jozef.cmd, pojedyncza instancja.
+- [ ] P2-5 Adapter Gemini (spec BMAD CAP-2) — niski priorytet.
+- [ ] P3 Overlay z przyciskami potwierdzeń (spec CAP-3) — potwierdzenia rozmową pokrywają potrzebę.
+- [ ] P3 Długie czytanie maili głosem (limit OpenAI TTS 4096 zn., Windows TTS przez stdin).
 
 ## Dziennik
 
@@ -77,6 +76,11 @@ Błędne założenia biznesowe:
 - 00:45 JOZEF-26 poprawki + P1-1/P1-2 (skróty, Start menu, szybka ścieżka) → krytyk: FAIL (N1 przejęcie skrótów, N2-N10).
 - 01:00 JOZEF-27 poprawki rundy 2 + okienko poleceń (P1-3), pauza mikrofonu, cache modelu Vosk,
   naprawa gubienia polecenia po "hej Józef", podpowiedzi błędów LLM, smoke test z prawdziwą Ollamą.
+- 01:10 JOZEF-28 Telegram, autostart, README → krytyk: FAIL (autostart nie działał, Telegram replay, 2 instancje).
+- 01:15–04:00 limit tokenów. Watchdog odpalał sesje headless (też trafiały w limit); o 04:00 headless
+  ruszył minutę przed wznowieniem tej sesji — zatrzymany (duplikat), watchdog przełączony na samo logowanie
+  (harness sam wznawia sesję po resecie).
+- 04:30 JOZEF-29 adapter Anthropic + jozef_status; JOZEF-30 poprawki rundy 4.
 
 ## Decyzje
 

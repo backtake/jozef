@@ -288,6 +288,7 @@ public class CoreConfiguration {
                                        Launcher launcher, AgentRuntime agentRuntime) {
         QuickCommands quick = new QuickCommands(shortcutStore, catalog, launcher);
         agentRuntime.addFastPath(quick);
+        agentRuntime.addFastPath(new com.jozef.shortcuts.MediaCommands());
         return quick;
     }
 
@@ -358,5 +359,13 @@ public class CoreConfiguration {
                                                    ProactiveCapability proactiveCapability,
                                                    ToolRegistry toolRegistry) {
         return new AssistantCapability(longTermMemory, googleCapability, proactiveCapability, toolRegistry);
+    }
+
+    @Bean
+    public com.jozef.assistant.WeatherAction weatherAction(ToolRegistry toolRegistry,
+                                                           @Value("${jozef.weather.city:}") String city) {
+        com.jozef.assistant.WeatherAction weather = new com.jozef.assistant.WeatherAction(city);
+        toolRegistry.register(weather);
+        return weather;
     }
 }

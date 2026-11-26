@@ -67,7 +67,27 @@ public class OpenAiSpeechSynthesizer implements SpeechSynthesizer {
         if (text == null || text.isBlank()) {
             return;
         }
-        Mp3Player.play(render(text));
+        // The API takes at most 4096 characters per request — long answers (a whole e-mail)
+        // are spoken in sentence-aligned parts.
+        for (String part : chunks(text, MAX_CHARS)) {
+            Mp3Player.play(render(part));
+        }
+    }
+
+    static final int MAX_CHARS = 3500;
+
+    static java.util.List<String> chunks(String text, int max) {
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        String rest = text.trim();
+        while (rest.length() > max) {
+            int cut = Math.max(rest.lastIndexOf(". ", max), Math.max(rest.lastIndexOf("? ", max), rest.lastIndexOf("! ", max)));
+            if (cut < max / 2) cut = rest.lastIndexOf(' ', max);
+            if (cut <= 0) cut = max;
+            parts.add(rest.substring(0, cut + 1).trim());
+            rest = rest.substring(cut + 1).trim();
+        }
+        if (!rest.isEmpty()) parts.add(rest);
+        return parts;
     }
 
     /** Renders text to MP3 bytes; throws on any failure so a fallback can take over. */

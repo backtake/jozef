@@ -57,6 +57,20 @@ class SpeechSynthesizersTest {
     }
 
     @Test
+    void longTextIsSplitIntoSentenceAlignedPartsUnderTheApiLimit() {
+        String sentence = "To jest zdanie numer jeden w bardzo długim mailu. ";
+        String text = sentence.repeat(200); // ~10 000 characters
+        List<String> parts = OpenAiSpeechSynthesizer.chunks(text, OpenAiSpeechSynthesizer.MAX_CHARS);
+
+        assertThat(parts).hasSizeGreaterThan(2);
+        assertThat(parts).allSatisfy(p -> {
+            assertThat(p.length()).isLessThanOrEqualTo(OpenAiSpeechSynthesizer.MAX_CHARS);
+            assertThat(p).endsWith(".");
+        });
+        assertThat(String.join(" ", parts).replace(" ", "")).isEqualTo(text.trim().replace(" ", ""));
+    }
+
+    @Test
     void windowsCultureIsValidated() {
         String script = new WindowsSpeechSynthesizer("x'; evil; '").script("a");
         assertThat(script).contains("'pl-PL'").doesNotContain("evil");
