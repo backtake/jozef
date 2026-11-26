@@ -71,6 +71,12 @@ class SpeechSynthesizersTest {
     }
 
     @Test
+    void windowsScriptTakesTheTextFromStdinNotTheCommandLine() {
+        String script = new WindowsSpeechSynthesizer("pl-PL").stdinScript();
+        assertThat(script).contains("OpenStandardInput").contains("UTF8.GetString").contains("'pl-PL'");
+    }
+
+    @Test
     void windowsCultureIsValidated() {
         String script = new WindowsSpeechSynthesizer("x'; evil; '").script("a");
         assertThat(script).contains("'pl-PL'").doesNotContain("evil");

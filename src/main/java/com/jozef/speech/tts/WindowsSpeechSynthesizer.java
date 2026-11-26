@@ -42,9 +42,14 @@ public class WindowsSpeechSynthesizer implements SpeechSynthesizer {
         }
         try {
             Process process = new ProcessBuilder(
-                    "powershell", "-NoProfile", "-NonInteractive", "-Command", script(text))
+                    "powershell", "-NoProfile", "-NonInteractive", "-Command", stdinScript())
                     .redirectErrorStream(true)
                     .start();
+            // The text goes in through stdin as UTF-8 bytes: no command-line length limit
+            // (a long e-mail read aloud) and nothing user-written on the command line.
+            try (var stdin = process.getOutputStream()) {
+                stdin.write(text.getBytes(StandardCharsets.UTF_8));
+            }
             process.getInputStream().transferTo(java.io.OutputStream.nullOutputStream());
             if (!process.waitFor(MAX_SPEAK_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
@@ -63,6 +68,19 @@ public class WindowsSpeechSynthesizer implements SpeechSynthesizer {
         }
     }
 
+    /** Reads raw UTF-8 bytes from stdin ([Console]::In would decode with the OEM code page). */
+    String stdinScript() {
+        return "$in = [Console]::OpenStandardInput(); $ms = New-Object IO.MemoryStream; $in.CopyTo($ms); "
+                + "$t = [Text.Encoding]::UTF8.GetString($ms.ToArray()); "
+                + "Add-Type -AssemblyName System.Speech; "
+                + "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+                + "$v = $s.GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -eq '"
+                + culture + "' } | Select-Object -First 1; "
+                + "if ($v) { $s.SelectVoice($v.VoiceInfo.Name) }; "
+                + "$s.Speak($t)";
+    }
+
+    /** Older variant (text Base64-encoded inside the command) — kept for tests/reference. */
     String script(String text) {
         String b64 = Base64.getEncoder().encodeToString(text.getBytes(StandardCharsets.UTF_8));
         return "Add-Type -AssemblyName System.Speech; "
